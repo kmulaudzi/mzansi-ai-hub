@@ -27,6 +27,8 @@ Heritage Assistant Logic
   │
   ▼
 Final Answer
+
+
 Scope
 
 Included:
