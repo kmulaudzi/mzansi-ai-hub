@@ -1,4 +1,13 @@
 ##%%writefile app.py
+import os
+import sys
+
+if "COLAB_RELEASE_TAG" not in os.environ:
+    sys.exit(
+        "Release 001 is configured to run in Google Colab only. "
+        "Open the project in Colab to launch the Heritage Intelligence Engine."
+    )
+
 
 import gradio as gr
 
