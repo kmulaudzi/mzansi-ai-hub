@@ -1,3 +1,12 @@
+"""
+Mzansi AI Hub
+Heritage Intelligence Engine
+
+Release 005 - Embedding Engine
+
+Retrieval Engine with in-memory caching
+"""
+
 from typing import Dict, List
 
 from chunking_engine import ChunkingEngine
@@ -8,8 +17,21 @@ from search_engine import search_documents
 
 class RetrievalEngine:
     """
-    Coordinates document loading, chunking, embedding,
-    and keyword retrieval.
+    Coordinates document preparation and retrieval.
+
+    Expensive preparation happens once:
+
+    Providers
+        ↓
+    Documents
+        ↓
+    Chunking Engine
+        ↓
+    Embedding Engine
+        ↓
+    Cached Embedded Chunks
+
+    Every user search then reuses the cached chunks.
     """
 
     def __init__(
@@ -27,37 +49,50 @@ class RetrievalEngine:
         self.chunking_engine = chunking_engine
         self.embedding_engine = embedding_engine
 
-    def prepare_documents(self) -> List[Dict]:
+        # Empty until prepare() runs.
+        self.cached_chunks: List[Dict] = []
+        self.is_prepared = False
+
+    def prepare(self) -> int:
         """
-        Load documents, split them into chunks,
-        and generate embeddings.
+        Load, chunk and embed all documents once.
+
+        Returns
+        -------
+        int
+            Number of embedded chunks stored in memory.
         """
 
         documents = []
 
         for provider in self.providers:
-            documents.extend(
-                provider.load_documents()
-            )
+            provider_documents = provider.load_documents()
+            documents.extend(provider_documents)
 
         chunks = self.chunking_engine.chunk_documents(
             documents=documents
         )
 
-        return self.embedding_engine.embed_chunks(
+        self.cached_chunks = self.embedding_engine.embed_chunks(
             chunks=chunks
         )
 
+        self.is_prepared = True
+
+        return len(self.cached_chunks)
+
     def retrieve(self, query: str) -> List[Dict]:
         """
-        Continue using keyword search for this release.
-
-        Semantic retrieval will be introduced in a later release.
+        Search the already prepared and cached chunks.
         """
 
-        embedded_chunks = self.prepare_documents()
+        if not self.is_prepared:
+            raise RuntimeError(
+                "RetrievalEngine is not prepared. "
+                "Call prepare() before searching."
+            )
 
         return search_documents(
             query=query,
-            documents=embedded_chunks,
+            documents=self.cached_chunks,
         )

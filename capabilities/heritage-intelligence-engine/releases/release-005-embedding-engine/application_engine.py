@@ -1,3 +1,12 @@
+"""
+Mzansi AI Hub
+Heritage Intelligence Engine
+
+Release 005 - Embedding Engine
+
+Application Engine
+"""
+
 from typing import Dict, List
 
 from chunking_engine import ChunkingEngine
@@ -9,8 +18,11 @@ from settings import MAX_RESULTS
 
 class ApplicationEngine:
     """
-    Coordinates requests between the interface
-    and the retrieval architecture.
+    Coordinates the interface and retrieval layers.
+
+    It does not load files, chunk documents, or create embeddings
+    itself. Those responsibilities belong to the Retrieval Engine
+    and its supporting engines.
     """
 
     def __init__(
@@ -33,7 +45,18 @@ class ApplicationEngine:
             embedding_engine=embedding_engine,
         )
 
+    def prepare(self) -> int:
+        """
+        Prepare and cache the heritage knowledge once.
+        """
+
+        return self.retrieval_engine.prepare()
+
     def search(self, query: str) -> Dict:
+        """
+        Validate a query and return cached search results.
+        """
+
         clean_query = query.strip()
 
         if not clean_query:

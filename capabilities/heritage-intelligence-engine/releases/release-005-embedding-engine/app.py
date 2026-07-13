@@ -39,18 +39,22 @@ def create_demo(embedding_model: Any) -> gr.Interface:
     ------------
     1. Colab loads the Hugging Face embedding model.
     2. Colab passes that model into create_demo().
-    3. This function creates the Providers.
+    3. This function creates the document Providers.
     4. It creates the Chunking Engine.
     5. It connects the Hugging Face model to our Embedding Engine.
     6. It creates the Application Engine.
-    7. It creates and returns the Gradio interface.
+    7. It prepares and caches the heritage knowledge once.
+    8. It creates and returns the Gradio interface.
     """
 
     # -------------------------------------------------------------
     # Provider Layer
     # -------------------------------------------------------------
-    # Providers read different source formats and return the same
-    # standard document structure.
+    # Providers read different source formats and convert them into
+    # the platform's standard document structure.
+    #
+    # MarkdownProvider reads the Knowledge Cards.
+    # PDFProvider reads the heritage PDF collection.
     # -------------------------------------------------------------
 
     markdown_provider = MarkdownProvider(
@@ -76,12 +80,12 @@ def create_demo(embedding_model: Any) -> gr.Interface:
     # -------------------------------------------------------------
     # Embedding Layer
     # -------------------------------------------------------------
-    # embedding_model is the real Hugging Face model created in Colab.
+    # embedding_model is the real Hugging Face model loaded in Colab.
     #
     # EmbeddingEngine is our architectural wrapper around that model.
     #
-    # This line is where the external model becomes connected to our
-    # Heritage Intelligence Engine.
+    # This is where the external Hugging Face model becomes connected
+    # to the Heritage Intelligence Engine.
     # -------------------------------------------------------------
 
     embedding_engine = EmbeddingEngine(
@@ -91,9 +95,17 @@ def create_demo(embedding_model: Any) -> gr.Interface:
     # -------------------------------------------------------------
     # Application Layer
     # -------------------------------------------------------------
-    # The Application Engine connects the Providers, Chunking Engine,
-    # Embedding Engine, Retrieval Engine, Search Engine and Ranking
-    # Engine into one application workflow.
+    # The Application Engine coordinates the complete workflow.
+    #
+    # It connects:
+    #   - Providers
+    #   - Chunking Engine
+    #   - Embedding Engine
+    #   - Retrieval Engine
+    #   - Search Engine
+    #   - Ranking Engine
+    #
+    # Gradio only talks to the Application Engine.
     # -------------------------------------------------------------
 
     application_engine = ApplicationEngine(
@@ -107,12 +119,42 @@ def create_demo(embedding_model: Any) -> gr.Interface:
     )
 
     # -------------------------------------------------------------
+    # Prepare and Cache Heritage Knowledge
+    # -------------------------------------------------------------
+    # This runs once when create_demo() is called.
+    #
+    # It:
+    #   1. Loads Markdown and PDF documents.
+    #   2. Creates document chunks.
+    #   3. Generates embeddings for those chunks.
+    #   4. Stores the embedded chunks in memory.
+    #
+    # Every user search then reuses the cached chunks.
+    # -------------------------------------------------------------
+
+    print("Preparing heritage knowledge...")
+
+    cached_chunk_count = application_engine.prepare()
+
+    print(
+        f"Heritage knowledge ready. "
+        f"Cached {cached_chunk_count} embedded chunks."
+    )
+
+    # -------------------------------------------------------------
     # Gradio Adapter
     # -------------------------------------------------------------
-    # Gradio receives a query and passes it to the Application Engine.
+    # Gradio receives the user's query and passes it to the
+    # Application Engine.
     #
-    # Gradio does not load documents, chunk text, create embeddings,
-    # search, or rank. It only sends input and displays output.
+    # Gradio does not:
+    #   - Load documents
+    #   - Create chunks
+    #   - Generate embeddings
+    #   - Search documents
+    #   - Rank results
+    #
+    # It only sends input and displays output.
     # -------------------------------------------------------------
 
     def format_search_results(
@@ -120,7 +162,14 @@ def create_demo(embedding_model: Any) -> gr.Interface:
         progress=gr.Progress(),
     ) -> str:
         """
-        Process one user search and format the results as Markdown.
+        Search the prepared in-memory heritage knowledge.
+
+        Search-time flow
+        ----------------
+        1. Receive the user's query.
+        2. Search the cached embedded chunks.
+        3. Rank matching chunks.
+        4. Format the results for Gradio.
         """
 
         if not query or not query.strip():
@@ -128,35 +177,20 @@ def create_demo(embedding_model: Any) -> gr.Interface:
 
         try:
             progress(
-                0.1,
-                desc="Starting the Heritage Intelligence Engine...",
+                0.2,
+                desc="Receiving search query...",
             )
 
             progress(
-                0.25,
-                desc="Loading Markdown and PDF documents...",
-            )
-
-            progress(
-                0.45,
-                desc="Creating document chunks...",
-            )
-
-            progress(
-                0.65,
-                desc="Generating embeddings...",
-            )
-
-            progress(
-                0.85,
-                desc="Searching and ranking heritage knowledge...",
+                0.6,
+                desc="Searching cached heritage chunks...",
             )
 
             response = application_engine.search(query)
 
             progress(
-                1.0,
-                desc="Results ready.",
+                0.85,
+                desc="Formatting ranked results...",
             )
 
         except Exception as error:
@@ -166,6 +200,11 @@ def create_demo(embedding_model: Any) -> gr.Interface:
             )
 
         if response["result_count"] == 0:
+            progress(
+                1.0,
+                desc="Search complete.",
+            )
+
             return response["message"]
 
         output = [
@@ -208,10 +247,22 @@ def create_demo(embedding_model: Any) -> gr.Interface:
                 ]
             )
 
+        progress(
+            1.0,
+            desc="Results ready.",
+        )
+
         return "\n".join(output)
 
     # -------------------------------------------------------------
     # Gradio Interface
+    # -------------------------------------------------------------
+    # This is the visible user interface.
+    #
+    # The interface:
+    #   - Receives a search query.
+    #   - Calls format_search_results().
+    #   - Displays the returned Markdown.
     # -------------------------------------------------------------
 
     return gr.Interface(
