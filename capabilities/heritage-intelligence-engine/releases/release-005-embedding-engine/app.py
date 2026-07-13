@@ -4,7 +4,7 @@ Heritage Intelligence Engine
 
 Release 005 - Embedding Engine
 
-Gradio Interface
+Gradio Interface and Runtime Blueprint
 """
 
 from typing import Any
@@ -33,8 +33,25 @@ from settings import (
 
 def create_demo(embedding_model: Any) -> gr.Interface:
     """
-    Build the Gradio application using an injected embedding model.
+    Build the complete Release 005 application.
+
+    Runtime flow
+    ------------
+    1. Colab loads the Hugging Face embedding model.
+    2. Colab passes that model into create_demo().
+    3. This function creates the Providers.
+    4. It creates the Chunking Engine.
+    5. It connects the Hugging Face model to our Embedding Engine.
+    6. It creates the Application Engine.
+    7. It creates and returns the Gradio interface.
     """
+
+    # -------------------------------------------------------------
+    # Provider Layer
+    # -------------------------------------------------------------
+    # Providers read different source formats and return the same
+    # standard document structure.
+    # -------------------------------------------------------------
 
     markdown_provider = MarkdownProvider(
         source_path=str(DATASET_PATH)
@@ -44,14 +61,40 @@ def create_demo(embedding_model: Any) -> gr.Interface:
         source_path=str(PDF_DATASET_PATH)
     )
 
+    # -------------------------------------------------------------
+    # Chunking Layer
+    # -------------------------------------------------------------
+    # The Chunking Engine divides large documents into smaller,
+    # searchable pieces while preserving source metadata.
+    # -------------------------------------------------------------
+
     chunking_engine = ChunkingEngine(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
     )
 
+    # -------------------------------------------------------------
+    # Embedding Layer
+    # -------------------------------------------------------------
+    # embedding_model is the real Hugging Face model created in Colab.
+    #
+    # EmbeddingEngine is our architectural wrapper around that model.
+    #
+    # This line is where the external model becomes connected to our
+    # Heritage Intelligence Engine.
+    # -------------------------------------------------------------
+
     embedding_engine = EmbeddingEngine(
         model=embedding_model
     )
+
+    # -------------------------------------------------------------
+    # Application Layer
+    # -------------------------------------------------------------
+    # The Application Engine connects the Providers, Chunking Engine,
+    # Embedding Engine, Retrieval Engine, Search Engine and Ranking
+    # Engine into one application workflow.
+    # -------------------------------------------------------------
 
     application_engine = ApplicationEngine(
         providers=[
@@ -63,8 +106,64 @@ def create_demo(embedding_model: Any) -> gr.Interface:
         max_results=MAX_RESULTS,
     )
 
-    def format_search_results(query: str) -> str:
-        response = application_engine.search(query)
+    # -------------------------------------------------------------
+    # Gradio Adapter
+    # -------------------------------------------------------------
+    # Gradio receives a query and passes it to the Application Engine.
+    #
+    # Gradio does not load documents, chunk text, create embeddings,
+    # search, or rank. It only sends input and displays output.
+    # -------------------------------------------------------------
+
+    def format_search_results(
+        query: str,
+        progress=gr.Progress(),
+    ) -> str:
+        """
+        Process one user search and format the results as Markdown.
+        """
+
+        if not query or not query.strip():
+            return "Please enter a search query."
+
+        try:
+            progress(
+                0.1,
+                desc="Starting the Heritage Intelligence Engine...",
+            )
+
+            progress(
+                0.25,
+                desc="Loading Markdown and PDF documents...",
+            )
+
+            progress(
+                0.45,
+                desc="Creating document chunks...",
+            )
+
+            progress(
+                0.65,
+                desc="Generating embeddings...",
+            )
+
+            progress(
+                0.85,
+                desc="Searching and ranking heritage knowledge...",
+            )
+
+            response = application_engine.search(query)
+
+            progress(
+                1.0,
+                desc="Results ready.",
+            )
+
+        except Exception as error:
+            return (
+                "## Application error\n\n"
+                f"```text\n{type(error).__name__}: {error}\n```"
+            )
 
         if response["result_count"] == 0:
             return response["message"]
@@ -82,7 +181,7 @@ def create_demo(embedding_model: Any) -> gr.Interface:
                 [
                     f"### {index}. {result['title']}",
                     "",
-                    f"**Relevance score:** {result['score']}",
+                    f"**Relevance score:** `{result['score']}`",
                     "",
                     f"**Source type:** `{result['source_type']}`",
                     "",
@@ -97,7 +196,10 @@ def create_demo(embedding_model: Any) -> gr.Interface:
                         f"`{result['embedding_dimension']}`"
                     ),
                     "",
-                    f"**Parent document:** `{result['parent_document']}`",
+                    (
+                        "**Parent document:** "
+                        f"`{result['parent_document']}`"
+                    ),
                     "",
                     result["content"],
                     "",
@@ -107,6 +209,10 @@ def create_demo(embedding_model: Any) -> gr.Interface:
             )
 
         return "\n".join(output)
+
+    # -------------------------------------------------------------
+    # Gradio Interface
+    # -------------------------------------------------------------
 
     return gr.Interface(
         fn=format_search_results,
