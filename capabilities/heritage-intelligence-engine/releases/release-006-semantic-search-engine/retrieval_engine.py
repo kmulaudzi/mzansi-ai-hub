@@ -2,7 +2,7 @@
 Mzansi AI Hub
 Heritage Intelligence Engine
 
-Release 005 - Embedding Engine
+Release 006 - Semantic Search Engine
 
 Retrieval Engine with in-memory caching
 """
@@ -12,15 +12,15 @@ from typing import Dict, List
 from chunking_engine import ChunkingEngine
 from embedding_engine import EmbeddingEngine
 from providers.base_provider import BaseProvider
-from search_engine import search_documents
+from similarity_engine import SimilarityEngine
 
 
 class RetrievalEngine:
     """
-    Coordinates document preparation and retrieval.
+    Coordinates document preparation and semantic retrieval.
 
-    Expensive preparation happens once:
-
+    Startup flow
+    ------------
     Providers
         ↓
     Documents
@@ -31,7 +31,17 @@ class RetrievalEngine:
         ↓
     Cached Embedded Chunks
 
-    Every user search then reuses the cached chunks.
+    Search-time flow
+    ----------------
+    User Query
+        ↓
+    Embedding Engine
+        ↓
+    Query Embedding
+        ↓
+    Similarity Engine
+        ↓
+    Ranked Semantic Matches
     """
 
     def __init__(
@@ -39,7 +49,15 @@ class RetrievalEngine:
         providers: List[BaseProvider],
         chunking_engine: ChunkingEngine,
         embedding_engine: EmbeddingEngine,
+        similarity_engine: SimilarityEngine,
     ):
+        """
+        Connect the engines required for semantic retrieval.
+
+        The Retrieval Engine does not create these dependencies.
+        They are injected from the application runtime.
+        """
+
         if not providers:
             raise ValueError(
                 "RetrievalEngine requires at least one provider."
@@ -48,6 +66,7 @@ class RetrievalEngine:
         self.providers = providers
         self.chunking_engine = chunking_engine
         self.embedding_engine = embedding_engine
+        self.similarity_engine = similarity_engine
 
         # Empty until prepare() runs.
         self.cached_chunks: List[Dict] = []
@@ -55,7 +74,9 @@ class RetrievalEngine:
 
     def prepare(self) -> int:
         """
-        Load, chunk and embed all documents once.
+        Load, chunk and embed all heritage documents once.
+
+        This is the expensive startup workflow.
 
         Returns
         -------
@@ -83,7 +104,18 @@ class RetrievalEngine:
 
     def retrieve(self, query: str) -> List[Dict]:
         """
-        Search the already prepared and cached chunks.
+        Search cached heritage chunks using semantic similarity.
+
+        Parameters
+        ----------
+        query : str
+            User's natural-language search query.
+
+        Returns
+        -------
+        List[Dict]
+            Cached chunks enriched with similarity scores,
+            sorted from most semantically similar to least similar.
         """
 
         if not self.is_prepared:
@@ -92,7 +124,14 @@ class RetrievalEngine:
                 "Call prepare() before searching."
             )
 
-        return search_documents(
-            query=query,
-            documents=self.cached_chunks,
+        # Convert the user's question into the same vector space
+        # used for the cached heritage chunks.
+        query_embedding = self.embedding_engine.embed_text(
+            text=query
+        )
+
+        # Compare the query vector against every cached chunk vector.
+        return self.similarity_engine.compare(
+            query_embedding=query_embedding,
+            embedded_chunks=self.cached_chunks,
         )

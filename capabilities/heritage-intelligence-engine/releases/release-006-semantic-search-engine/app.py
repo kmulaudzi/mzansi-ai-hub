@@ -2,7 +2,7 @@
 Mzansi AI Hub
 Heritage Intelligence Engine
 
-Release 005 - Embedding Engine
+Release 006 - Semantic Search Engine
 
 Gradio Interface and Runtime Blueprint
 """
@@ -29,32 +29,39 @@ from settings import (
     SEARCH_PLACEHOLDER,
     WINDOW_TITLE,
 )
+from similarity_engine import SimilarityEngine
 
 
-def create_demo(embedding_model: Any) -> gr.Interface:
+def create_demo(
+    embedding_model: Any,
+) -> gr.Interface:
     """
-    Build the complete Release 005 application.
+    Build the complete Release 006 application.
 
     Runtime flow
     ------------
     1. Colab loads the Hugging Face embedding model.
-    2. Colab passes that model into create_demo().
+    2. Colab passes the model into create_demo().
     3. This function creates the document Providers.
     4. It creates the Chunking Engine.
     5. It connects the Hugging Face model to our Embedding Engine.
-    6. It creates the Application Engine.
-    7. It prepares and caches the heritage knowledge once.
-    8. It creates and returns the Gradio interface.
+    6. It creates the stateless Similarity Engine.
+    7. It connects everything through the Application Engine.
+    8. It prepares and caches the heritage knowledge once.
+    9. It creates and returns the Gradio interface.
     """
 
     # -------------------------------------------------------------
     # Provider Layer
     # -------------------------------------------------------------
     # Providers read different source formats and convert them into
-    # the platform's standard document structure.
+    # the same standard document structure.
     #
-    # MarkdownProvider reads the Knowledge Cards.
-    # PDFProvider reads the heritage PDF collection.
+    # MarkdownProvider:
+    #   Reads the structured Knowledge Cards.
+    #
+    # PDFProvider:
+    #   Reads the heritage PDF collection.
     # -------------------------------------------------------------
 
     markdown_provider = MarkdownProvider(
@@ -68,8 +75,15 @@ def create_demo(embedding_model: Any) -> gr.Interface:
     # -------------------------------------------------------------
     # Chunking Layer
     # -------------------------------------------------------------
-    # The Chunking Engine divides large documents into smaller,
-    # searchable pieces while preserving source metadata.
+    # The Chunking Engine divides large documents into smaller
+    # pieces of knowledge.
+    #
+    # Each chunk preserves:
+    #   - Source file
+    #   - Source type
+    #   - Parent document
+    #   - Chunk ID
+    #   - Chunk index
     # -------------------------------------------------------------
 
     chunking_engine = ChunkingEngine(
@@ -84,13 +98,39 @@ def create_demo(embedding_model: Any) -> gr.Interface:
     #
     # EmbeddingEngine is our architectural wrapper around that model.
     #
-    # This is where the external Hugging Face model becomes connected
-    # to the Heritage Intelligence Engine.
+    # This is the connection point between:
+    #
+    # Hugging Face model
+    #        ↓
+    # Our Embedding Engine
+    #        ↓
+    # Heritage Intelligence Engine
+    #
+    # The same engine embeds:
+    #   - Document chunks during startup
+    #   - User queries during search
     # -------------------------------------------------------------
 
     embedding_engine = EmbeddingEngine(
         model=embedding_model
     )
+
+    # -------------------------------------------------------------
+    # Similarity Layer
+    # -------------------------------------------------------------
+    # The Similarity Engine compares:
+    #
+    # User query embedding
+    #        +
+    # Cached document chunk embeddings
+    #
+    # It enriches each chunk with a similarity score and returns
+    # the chunks sorted from most similar to least similar.
+    #
+    # It is stateless and performs pure vector mathematics.
+    # -------------------------------------------------------------
+
+    similarity_engine = SimilarityEngine()
 
     # -------------------------------------------------------------
     # Application Layer
@@ -101,11 +141,10 @@ def create_demo(embedding_model: Any) -> gr.Interface:
     #   - Providers
     #   - Chunking Engine
     #   - Embedding Engine
+    #   - Similarity Engine
     #   - Retrieval Engine
-    #   - Search Engine
-    #   - Ranking Engine
     #
-    # Gradio only talks to the Application Engine.
+    # Gradio only communicates with the Application Engine.
     # -------------------------------------------------------------
 
     application_engine = ApplicationEngine(
@@ -115,24 +154,37 @@ def create_demo(embedding_model: Any) -> gr.Interface:
         ],
         chunking_engine=chunking_engine,
         embedding_engine=embedding_engine,
+        similarity_engine=similarity_engine,
         max_results=MAX_RESULTS,
     )
 
     # -------------------------------------------------------------
     # Prepare and Cache Heritage Knowledge
     # -------------------------------------------------------------
-    # This runs once when create_demo() is called.
+    # This expensive workflow runs once when create_demo() is called.
     #
-    # It:
-    #   1. Loads Markdown and PDF documents.
-    #   2. Creates document chunks.
-    #   3. Generates embeddings for those chunks.
-    #   4. Stores the embedded chunks in memory.
+    # Startup preparation:
     #
-    # Every user search then reuses the cached chunks.
+    # Providers
+    #     ↓
+    # Documents
+    #     ↓
+    # Chunking Engine
+    #     ↓
+    # Chunks
+    #     ↓
+    # Embedding Engine
+    #     ↓
+    # Embedded chunks cached in memory
+    #
+    # User searches reuse the cache instead of repeating this work.
     # -------------------------------------------------------------
 
     print("Preparing heritage knowledge...")
+    print(
+        "Loading documents, creating chunks and "
+        "generating embeddings."
+    )
 
     cached_chunk_count = application_engine.prepare()
 
@@ -147,14 +199,23 @@ def create_demo(embedding_model: Any) -> gr.Interface:
     # Gradio receives the user's query and passes it to the
     # Application Engine.
     #
-    # Gradio does not:
-    #   - Load documents
-    #   - Create chunks
-    #   - Generate embeddings
-    #   - Search documents
-    #   - Rank results
+    # Search-time flow:
     #
-    # It only sends input and displays output.
+    # User query
+    #     ↓
+    # Application Engine
+    #     ↓
+    # Retrieval Engine
+    #     ↓
+    # Embedding Engine creates query vector
+    #     ↓
+    # Similarity Engine compares vectors
+    #     ↓
+    # Semantic matches returned
+    #     ↓
+    # Gradio formats and displays results
+    #
+    # Gradio does not perform AI processing itself.
     # -------------------------------------------------------------
 
     def format_search_results(
@@ -162,14 +223,15 @@ def create_demo(embedding_model: Any) -> gr.Interface:
         progress=gr.Progress(),
     ) -> str:
         """
-        Search the prepared in-memory heritage knowledge.
+        Search the prepared heritage knowledge by semantic meaning.
 
         Search-time flow
         ----------------
-        1. Receive the user's query.
-        2. Search the cached embedded chunks.
-        3. Rank matching chunks.
-        4. Format the results for Gradio.
+        1. Receive the user's natural-language query.
+        2. Convert the query into an embedding.
+        3. Compare it with cached chunk embeddings.
+        4. Return the most semantically similar chunks.
+        5. Format the results for Gradio.
         """
 
         if not query or not query.strip():
@@ -177,26 +239,35 @@ def create_demo(embedding_model: Any) -> gr.Interface:
 
         try:
             progress(
-                0.2,
+                0.15,
                 desc="Receiving search query...",
             )
 
             progress(
-                0.6,
-                desc="Searching cached heritage chunks...",
+                0.35,
+                desc="Converting query into an embedding...",
             )
 
-            response = application_engine.search(query)
+            progress(
+                0.65,
+                desc="Comparing semantic meaning...",
+            )
+
+            response = application_engine.search(
+                query=query
+            )
 
             progress(
                 0.85,
-                desc="Formatting ranked results...",
+                desc="Formatting semantic results...",
             )
 
         except Exception as error:
             return (
                 "## Application error\n\n"
-                f"```text\n{type(error).__name__}: {error}\n```"
+                f"```text\n"
+                f"{type(error).__name__}: {error}\n"
+                f"```"
             )
 
         if response["result_count"] == 0:
@@ -210,17 +281,30 @@ def create_demo(embedding_model: Any) -> gr.Interface:
         output = [
             f"## {response['message']}",
             "",
+            (
+                "These results were retrieved using semantic "
+                "similarity rather than keyword matching."
+            ),
+            "",
         ]
 
         for index, result in enumerate(
             response["results"],
             start=1,
         ):
+            similarity_score = result.get(
+                "similarity",
+                0.0,
+            )
+
             output.extend(
                 [
                     f"### {index}. {result['title']}",
                     "",
-                    f"**Relevance score:** `{result['score']}`",
+                    (
+                        "**Semantic similarity:** "
+                        f"`{similarity_score:.4f}`"
+                    ),
                     "",
                     f"**Source type:** `{result['source_type']}`",
                     "",
@@ -249,7 +333,7 @@ def create_demo(embedding_model: Any) -> gr.Interface:
 
         progress(
             1.0,
-            desc="Results ready.",
+            desc="Semantic results ready.",
         )
 
         return "\n".join(output)
@@ -257,12 +341,13 @@ def create_demo(embedding_model: Any) -> gr.Interface:
     # -------------------------------------------------------------
     # Gradio Interface
     # -------------------------------------------------------------
-    # This is the visible user interface.
-    #
     # The interface:
-    #   - Receives a search query.
+    #   - Receives a natural-language heritage question.
     #   - Calls format_search_results().
     #   - Displays the returned Markdown.
+    #
+    # The examples intentionally include queries that do not rely
+    # only on exact keywords.
     # -------------------------------------------------------------
 
     return gr.Interface(
@@ -276,12 +361,15 @@ def create_demo(embedding_model: Any) -> gr.Interface:
             label=RESULTS_LABEL,
         ),
         title=f"{APPLICATION_NAME} — {WINDOW_TITLE}",
-        description=APPLICATION_DESCRIPTION,
+        description=(
+            f"{APPLICATION_DESCRIPTION}\n\n"
+            "Release 006 searches heritage knowledge by meaning."
+        ),
         examples=[
-            ["Mandela"],
-            ["women leaders"],
-            ["living heritage"],
-            ["funding"],
-            ["museum"],
+            ["South Africa's first democratic president"],
+            ["Leader imprisoned for 27 years"],
+            ["Women who advanced education and equality"],
+            ["Ancient African kingdom known for trade"],
+            ["Traditional artwork created by women"],
         ],
     )
