@@ -2,454 +2,695 @@
 Mzansi AI Hub
 Heritage Intelligence Engine
 
-Release 007 - Vector Database Engine
+Release 010 - Response Generation Engine
 
-Gradio Interface and Runtime Blueprint
+Runtime Blueprint
+-----------------
+This file creates and connects every component required by the
+Heritage Intelligence Engine.
+
+The application has two separate pipelines:
+
+1. Startup pipeline
+   Loads, chunks, embeds and indexes heritage documents once.
+
+2. Runtime pipeline
+   Receives a question, retrieves relevant knowledge, builds context
+   and generates a grounded answer.
 """
 
-from typing import Any
+from pathlib import Path
 
 import gradio as gr
 
+from sentence_transformers import SentenceTransformer
+from transformers import (
+    AutoModelForSeq2SeqLM,
+    AutoTokenizer,
+)
+
 from application_engine import ApplicationEngine
 from chunking_engine import ChunkingEngine
+from context_engine import ContextEngine
 from embedding_engine import EmbeddingEngine
 from providers.markdown_provider import MarkdownProvider
 from providers.pdf_provider import PDFProvider
+from response_generation_engine import ResponseGenerationEngine
+from retrieval_policy_engine import RetrievalPolicyEngine
 from settings import (
-    APPLICATION_DESCRIPTION,
-    APPLICATION_NAME,
     CHUNK_OVERLAP,
     CHUNK_SIZE,
-    DATASET_PATH,
+    EMBEDDING_MODEL_NAME,
     MAX_RESULTS,
-    PDF_DATASET_PATH,
-    RESULTS_LABEL,
-    SEARCH_LABEL,
-    SEARCH_PLACEHOLDER,
-    WINDOW_TITLE,
+    RESPONSE_MODEL_NAME,
+    SIMILARITY_THRESHOLD,
 )
 from vector_database_engine import VectorDatabaseEngine
 
 
-def create_demo(
-    embedding_model: Any,
-) -> gr.Interface:
+# =============================================================
+# PROJECT PATHS
+# =============================================================
+#
+# app.py lives inside:
+#
+# capabilities/
+#   heritage-intelligence-engine/
+#     releases/
+#       release-010-response-generation-engine/
+#
+# The project root is calculated relative to this file instead
+# of depending on the terminal's current working directory.
+# =============================================================
+
+CURRENT_DIRECTORY = Path(__file__).resolve().parent
+
+PROJECT_ROOT = CURRENT_DIRECTORY.parents[3]
+
+FOUNDATION_DATASET_DIRECTORY = (
+    PROJECT_ROOT
+    / "foundation-dataset"
+)
+
+MARKDOWN_DIRECTORY = (
+    FOUNDATION_DATASET_DIRECTORY
+    / "knowledge-cards"
+)
+
+PDF_DIRECTORY = (
+    FOUNDATION_DATASET_DIRECTORY
+    / "pdfs"
+)
+
+
+# =============================================================
+# STARTUP BANNER
+# =============================================================
+
+print("=" * 70)
+print("Mzansi AI Hub")
+print("Heritage Intelligence Engine")
+print("Release 010 - Response Generation Engine")
+print("=" * 70)
+
+
+# =============================================================
+# KNOWLEDGE ACQUISITION LAYER
+#
+# Python files:
+# providers/markdown_provider.py
+# providers/pdf_provider.py
+# =============================================================
+#
+# Providers are responsible only for reading source documents.
+#
+# MarkdownProvider
+#     Reads Markdown heritage knowledge cards.
+#
+# PDFProvider
+#     Reads heritage PDF documents.
+#
+# Providers return a common document structure so that the rest
+# of the application does not need to know which file format was
+# originally used.
+# =============================================================
+
+markdown_provider = MarkdownProvider(
+    directory_path=MARKDOWN_DIRECTORY,
+)
+
+pdf_provider = PDFProvider(
+    directory_path=PDF_DIRECTORY,
+)
+
+
+# =============================================================
+# KNOWLEDGE SEGMENTATION LAYER
+#
+# Python file:
+# chunking_engine.py
+# =============================================================
+#
+# The Chunking Engine divides large documents into smaller,
+# searchable knowledge units.
+#
+# It preserves document metadata so that each chunk can still be
+# traced back to its title, source and original document.
+# =============================================================
+
+chunking_engine = ChunkingEngine(
+    chunk_size=CHUNK_SIZE,
+    chunk_overlap=CHUNK_OVERLAP,
+)
+
+
+# =============================================================
+# SEMANTIC REPRESENTATION LAYER
+#
+# Python file:
+# embedding_engine.py
+# =============================================================
+#
+# SentenceTransformer is an external Hugging Face technology.
+#
+# It is created here and injected into EmbeddingEngine.
+#
+# This means the rest of the application communicates with our
+# own EmbeddingEngine contract rather than communicating directly
+# with SentenceTransformer.
+#
+# Architecture:
+#
+# Application
+#     ↓
+# EmbeddingEngine
+#     ↓
+# SentenceTransformer
+# =============================================================
+
+print("\nLoading embedding model...")
+
+embedding_model = SentenceTransformer(
+    EMBEDDING_MODEL_NAME
+)
+
+embedding_engine = EmbeddingEngine(
+    model=embedding_model,
+)
+
+print("Embedding model loaded successfully.")
+
+
+# =============================================================
+# SEMANTIC MEMORY LAYER
+#
+# Python file:
+# vector_database_engine.py
+# =============================================================
+#
+# The Vector Database Engine stores embedded heritage chunks in
+# a FAISS index.
+#
+# Startup:
+#
+# Embedded chunks
+#     ↓
+# VectorDatabaseEngine.build_index()
+#     ↓
+# FAISS vector index
+#
+# Runtime:
+#
+# Query embedding
+#     ↓
+# VectorDatabaseEngine.search()
+#     ↓
+# Candidate heritage chunks
+#
+# FAISS remains hidden behind our own architecture.
+# =============================================================
+
+vector_database_engine = VectorDatabaseEngine()
+
+
+# =============================================================
+# KNOWLEDGE JUDGEMENT LAYER
+#
+# Python file:
+# retrieval_policy_engine.py
+# =============================================================
+#
+# The Vector Database Engine finds semantically close chunks.
+#
+# The Retrieval Policy Engine then decides which candidates are
+# relevant enough to continue through the pipeline.
+#
+# Current policy:
+#
+# similarity >= SIMILARITY_THRESHOLD
+#
+# Future policies may include:
+#
+# - trusted-source weighting
+# - metadata filtering
+# - date filtering
+# - duplicate removal
+# - content safety rules
+# - source authority rules
+# =============================================================
+
+retrieval_policy_engine = RetrievalPolicyEngine(
+    similarity_threshold=SIMILARITY_THRESHOLD,
+)
+
+
+# =============================================================
+# KNOWLEDGE ORGANISATION LAYER
+#
+# Python file:
+# context_engine.py
+# =============================================================
+#
+# The Context Engine converts approved heritage chunks into one
+# structured context string.
+#
+# Input:
+#
+# List[Dict]
+#
+# Output:
+#
+# One LLM-ready string
+#
+# It does not retrieve knowledge and it does not generate answers.
+# =============================================================
+
+context_engine = ContextEngine()
+
+
+# =============================================================
+# RESPONSE-GENERATION TECHNOLOGY
+#
+# External implementation:
+# Hugging Face Transformers
+# =============================================================
+#
+# The tokenizer converts the controlled prompt into model inputs.
+#
+# The model generates a natural-language response.
+#
+# These objects are created outside ResponseGenerationEngine and
+# injected into it. This preserves dependency injection and keeps
+# Hugging Face behind our architectural contract.
+# =============================================================
+
+print("\nLoading response-generation tokenizer...")
+
+response_tokenizer = AutoTokenizer.from_pretrained(
+    RESPONSE_MODEL_NAME
+)
+
+print("Loading response-generation model...")
+
+response_model = AutoModelForSeq2SeqLM.from_pretrained(
+    RESPONSE_MODEL_NAME
+)
+
+print("Response-generation model loaded successfully.")
+
+
+# =============================================================
+# RESPONSE GENERATION LAYER
+#
+# Python file:
+# response_generation_engine.py
+# =============================================================
+#
+# The Response Generation Engine receives:
+#
+# - the user's question
+# - the context built from approved heritage knowledge
+#
+# It then:
+#
+# 1. Builds a controlled prompt.
+# 2. Tokenizes the prompt.
+# 3. Calls the language model.
+# 4. Decodes the generated output.
+# 5. Returns the grounded answer.
+#
+# It does not know about PDFs, Markdown, chunks, FAISS or Gradio.
+# =============================================================
+
+response_generation_engine = ResponseGenerationEngine(
+    model=response_model,
+    tokenizer=response_tokenizer,
+)
+
+
+# =============================================================
+# APPLICATION COORDINATION LAYER
+#
+# Python file:
+# application_engine.py
+# =============================================================
+#
+# ApplicationEngine coordinates the complete user-facing flow.
+#
+# It receives all dependencies rather than constructing them.
+#
+# This is the composition root of the application: the location
+# where independently designed components are connected.
+# =============================================================
+
+application_engine = ApplicationEngine(
+    providers=[
+        markdown_provider,
+        pdf_provider,
+    ],
+    chunking_engine=chunking_engine,
+    embedding_engine=embedding_engine,
+    vector_database_engine=vector_database_engine,
+    retrieval_policy_engine=retrieval_policy_engine,
+    context_engine=context_engine,
+    response_generation_engine=response_generation_engine,
+    max_results=MAX_RESULTS,
+)
+
+
+# =============================================================
+# STARTUP PIPELINE
+# =============================================================
+#
+# This work happens once when the application starts.
+#
+# MarkdownProvider / PDFProvider
+# providers/*.py
+#         ↓
+# Documents
+#         ↓
+# ChunkingEngine
+# chunking_engine.py
+#         ↓
+# Chunks
+#         ↓
+# EmbeddingEngine
+# embedding_engine.py
+#         ↓
+# Embedded chunks
+#         ↓
+# VectorDatabaseEngine
+# vector_database_engine.py
+#         ↓
+# FAISS vector index
+#
+# Expensive document embeddings are therefore not regenerated
+# for every user question.
+# =============================================================
+
+print("\nPreparing heritage knowledge...")
+
+indexed_chunk_count = application_engine.prepare()
+
+print(
+    f"Heritage knowledge prepared successfully. "
+    f"{indexed_chunk_count} chunk(s) indexed."
+)
+
+
+# =============================================================
+# GRADIO CALLBACK
+# =============================================================
+#
+# This function connects the presentation layer to our
+# ApplicationEngine.
+#
+# Runtime pipeline:
+#
+# User question
+#     ↓
+# ApplicationEngine.ask()
+# application_engine.py
+#     ↓
+# RetrievalEngine.retrieve()
+# retrieval_engine.py
+#     ↓
+# EmbeddingEngine.embed_text()
+# embedding_engine.py
+#     ↓
+# Query embedding
+#     ↓
+# VectorDatabaseEngine.search()
+# vector_database_engine.py
+#     ↓
+# Candidate chunks
+#     ↓
+# RetrievalPolicyEngine.apply()
+# retrieval_policy_engine.py
+#     ↓
+# Approved chunks
+#     ↓
+# ContextEngine.build_context()
+# context_engine.py
+#     ↓
+# LLM-ready context
+#     ↓
+# ResponseGenerationEngine.generate_response()
+# response_generation_engine.py
+#     ↓
+# Grounded heritage answer
+#     ↓
+# Gradio output
+# =============================================================
+
+def ask_heritage_question(
+    query: str,
+    progress=gr.Progress(),
+):
     """
-    Build the complete Release 007 application.
+    Process a heritage question through the complete RAG pipeline.
 
-    Full runtime flow
-    -----------------
-    1. Google Colab loads the Hugging Face embedding model.
-    2. Colab passes the model into create_demo().
-    3. This function creates the document Providers.
-    4. It creates the Chunking Engine.
-    5. It connects the Hugging Face model to our Embedding Engine.
-    6. It creates the Vector Database Engine.
-    7. It injects every component into the Application Engine.
-    8. The application loads, chunks and embeds the documents.
-    9. The Vector Database Engine builds the FAISS index.
-    10. The Gradio interface is created and returned.
-
-    app.py is the runtime blueprint.
-
-    It shows where all architectural components are created
-    and connected.
+    Returns
+    -------
+    tuple
+        Generated answer, status message, source text and context.
     """
 
-    # -------------------------------------------------------------
-    # Provider Layer
-    # Python:
-    # providers/markdown_provider.py
-    # providers/pdf_provider.py
-    # -------------------------------------------------------------
-    #
-    # Providers read different source formats and convert them into
-    # the same standard document contract.
-    #
-    # MarkdownProvider:
-    #   Reads the structured Heritage Knowledge Cards.
-    #
-    # PDFProvider:
-    #   Reads the heritage PDF collection.
-    #
-    # Both providers return documents containing fields such as:
-    #
-    #   filename
-    #   title
-    #   content
-    #   source_type
-    #   source_path
-    # -------------------------------------------------------------
-
-    markdown_provider = MarkdownProvider(
-        source_path=str(DATASET_PATH)
+    progress(
+        0.05,
+        desc="Validating your question...",
     )
 
-    pdf_provider = PDFProvider(
-        source_path=str(PDF_DATASET_PATH)
-    )
+    clean_query = (query or "").strip()
 
-    # -------------------------------------------------------------
-    # Pre-processing Layer
-    # Python:
-    # chunking_engine.py
-    # -------------------------------------------------------------
-    #
-    # The Chunking Engine divides large documents into smaller
-    # searchable pieces of knowledge.
-    #
-    # It preserves:
-    #
-    #   source file
-    #   source type
-    #   source path
-    #   parent document
-    #   chunk ID
-    #   chunk index
-    #
-    # The overlap helps preserve context between neighbouring chunks.
-    # -------------------------------------------------------------
-
-    chunking_engine = ChunkingEngine(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-    )
-
-    # -------------------------------------------------------------
-    # Embedding Layer
-    # Python:
-    # embedding_engine.py
-    # -------------------------------------------------------------
-    #
-    # embedding_model is the real Hugging Face model loaded in Colab.
-    #
-    # EmbeddingEngine is our architectural wrapper around that model.
-    #
-    # This is the connection point:
-    #
-    # Hugging Face SentenceTransformer
-    #               ↓
-    #         EmbeddingEngine
-    #               ↓
-    # Heritage Intelligence Engine
-    #
-    # The same Embedding Engine is used for:
-    #
-    # Startup:
-    #   Document chunks → chunk embeddings
-    #
-    # Search time:
-    #   User query → query embedding
-    #
-    # Sentence Transformers remains an implementation behind
-    # our stable Embedding Engine contract.
-    # -------------------------------------------------------------
-
-    embedding_engine = EmbeddingEngine(
-        model=embedding_model
-    )
-
-    # -------------------------------------------------------------
-    # Intelligence Storage Layer
-    # Python:
-    # vector_database_engine.py
-    # -------------------------------------------------------------
-    #
-    # The Vector Database Engine owns the AI memory layer.
-    #
-    # Startup:
-    #
-    # Embedded chunks
-    #       ↓
-    # build_index()
-    #       ↓
-    # FAISS vector index
-    #
-    # Search time:
-    #
-    # Query embedding
-    #       ↓
-    # search()
-    #       ↓
-    # Nearest-neighbour chunks
-    #
-    # FAISS is only the implementation behind our contract.
-    #
-    # The rest of the application does not import or communicate
-    # with FAISS directly.
-    # -------------------------------------------------------------
-
-    vector_database_engine = VectorDatabaseEngine()
-
-    # -------------------------------------------------------------
-    # Application Layer
-    # Python:
-    # application_engine.py
-    # -------------------------------------------------------------
-    #
-    # The Application Engine coordinates the user-facing workflow.
-    #
-    # It receives:
-    #
-    #   Providers
-    #   Chunking Engine
-    #   Embedding Engine
-    #   Vector Database Engine
-    #
-    # It injects these components into the Retrieval Engine.
-    #
-    # Gradio communicates only with the Application Engine.
-    # -------------------------------------------------------------
-
-    application_engine = ApplicationEngine(
-        providers=[
-            markdown_provider,
-            pdf_provider,
-        ],
-        chunking_engine=chunking_engine,
-        embedding_engine=embedding_engine,
-        vector_database_engine=vector_database_engine,
-        max_results=MAX_RESULTS,
-    )
-
-    # -------------------------------------------------------------
-    # Startup Preparation
-    # -------------------------------------------------------------
-    #
-    # This expensive workflow runs once when create_demo() is called.
-    #
-    # Providers
-    #     ↓
-    # Documents
-    #     ↓
-    # Chunking Engine
-    #     ↓
-    # Chunks
-    #     ↓
-    # Embedding Engine
-    #     ↓
-    # Embedded chunks
-    #     ↓
-    # Vector Database Engine
-    #     ↓
-    # FAISS vector index
-    #
-    # Searches reuse the existing index.
-    #
-    # The complete document preparation pipeline does not run again
-    # for every user query.
-    # -------------------------------------------------------------
-
-    print("Preparing heritage intelligence...")
-    print(
-        "Loading documents, creating chunks, generating embeddings "
-        "and building the FAISS vector index."
-    )
-
-    indexed_chunk_count = application_engine.prepare()
-
-    print(
-        f"Heritage intelligence ready. "
-        f"Indexed {indexed_chunk_count} embedded chunks."
-    )
-
-    # -------------------------------------------------------------
-    # Presentation Adapter
-    # Python:
-    # app.py
-    # -------------------------------------------------------------
-    #
-    # Gradio receives the user query and sends it to the
-    # Application Engine.
-    #
-    # Search-time flow:
-    #
-    # User query
-    #     ↓
-    # Application Engine
-    #     ↓
-    # Retrieval Engine
-    #     ↓
-    # Embedding Engine.embed_text()
-    #     ↓
-    # Query embedding
-    #     ↓
-    # VectorDatabaseEngine.search()
-    #     ↓
-    # FAISS nearest neighbours
-    #     ↓
-    # Enriched heritage chunks
-    #     ↓
-    # Gradio Markdown output
-    #
-    # Gradio does not:
-    #
-    #   load documents
-    #   create chunks
-    #   generate embeddings
-    #   build indexes
-    #   search FAISS directly
-    #
-    # It only receives user input and displays application output.
-    # -------------------------------------------------------------
-
-    def format_search_results(
-        query: str,
-        progress=gr.Progress(),
-    ) -> str:
-        """
-        Search the FAISS heritage index and format the results.
-
-        Search-time flow
-        ----------------
-        1. Receive the user's natural-language query.
-        2. Convert the query into an embedding.
-        3. Search the FAISS vector index.
-        4. Retrieve the nearest embedded chunks.
-        5. Format the results for Gradio.
-        """
-
-        if not query or not query.strip():
-            return "Please enter a search query."
-
-        try:
-            progress(
-                0.15,
-                desc="Receiving search query...",
-            )
-
-            progress(
-                0.35,
-                desc="Converting query into an embedding...",
-            )
-
-            progress(
-                0.65,
-                desc="Searching the heritage vector index...",
-            )
-
-            response = application_engine.search(
-                query=query
-            )
-
-            progress(
-                0.85,
-                desc="Formatting nearest-neighbour results...",
-            )
-
-        except Exception as error:
-            return (
-                "## Application error\n\n"
-                f"```text\n"
-                f"{type(error).__name__}: {error}\n"
-                f"```"
-            )
-
-        if response["result_count"] == 0:
-            progress(
-                1.0,
-                desc="Search complete.",
-            )
-
-            return response["message"]
-
-        output = [
-            f"## {response['message']}",
+    if not clean_query:
+        return (
             "",
-            (
-                "These results were retrieved from the FAISS "
-                "vector index using semantic nearest-neighbour search."
-            ),
+            "Please enter a heritage question.",
             "",
-        ]
-
-        for index, result in enumerate(
-            response["results"],
-            start=1,
-        ):
-            similarity_score = result.get(
-                "similarity",
-                0.0,
-            )
-
-            vector_index = result.get(
-                "vector_index",
-                "Unknown",
-            )
-
-            output.extend(
-                [
-                    f"### {index}. {result['title']}",
-                    "",
-                    (
-                        "**Vector similarity:** "
-                        f"`{similarity_score:.4f}`"
-                    ),
-                    "",
-                    f"**FAISS vector index:** `{vector_index}`",
-                    "",
-                    f"**Source type:** `{result['source_type']}`",
-                    "",
-                    f"**Source file:** `{result['filename']}`",
-                    "",
-                    f"**Chunk ID:** `{result['chunk_id']}`",
-                    "",
-                    f"**Chunk index:** `{result['chunk_index']}`",
-                    "",
-                    (
-                        "**Embedding dimension:** "
-                        f"`{result['embedding_dimension']}`"
-                    ),
-                    "",
-                    (
-                        "**Parent document:** "
-                        f"`{result['parent_document']}`"
-                    ),
-                    "",
-                    result["content"],
-                    "",
-                    "---",
-                    "",
-                ]
-            )
-
-        progress(
-            1.0,
-            desc="Nearest-neighbour results ready.",
+            "",
         )
 
-        return "\n".join(output)
+    progress(
+        0.20,
+        desc="Searching heritage knowledge...",
+    )
 
-    # -------------------------------------------------------------
-    # Gradio Interface
-    # -------------------------------------------------------------
-    #
-    # The examples intentionally use meaning-based queries rather
-    # than only exact document keywords.
-    # -------------------------------------------------------------
+    result = application_engine.ask(
+        query=clean_query
+    )
 
-    return gr.Interface(
-        fn=format_search_results,
-        inputs=gr.Textbox(
-            label=SEARCH_LABEL,
-            placeholder=SEARCH_PLACEHOLDER,
-            lines=1,
-        ),
-        outputs=gr.Markdown(
-            label=RESULTS_LABEL,
-        ),
-        title=f"{APPLICATION_NAME} — {WINDOW_TITLE}",
-        description=(
-            f"{APPLICATION_DESCRIPTION}\n\n"
-            "Release 007 stores heritage meaning in a FAISS "
-            "vector index and retrieves the nearest neighbours."
-        ),
-        examples=[
-            ["South Africa's first democratic president"],
-            ["Leader imprisoned for 27 years"],
-            ["Women who advanced education and equality"],
-            ["Ancient African kingdom known for trade"],
-            ["Traditional artwork created by women"],
+    progress(
+        0.75,
+        desc="Preparing grounded response...",
+    )
+
+    answer = result.get(
+        "answer",
+        "",
+    )
+
+    message = result.get(
+        "message",
+        "",
+    )
+
+    context = result.get(
+        "context",
+        "",
+    )
+
+    approved_chunks = result.get(
+        "results",
+        [],
+    )
+
+    source_sections = []
+
+    for position, chunk in enumerate(
+        approved_chunks,
+        start=1,
+    ):
+        title = str(
+            chunk.get(
+                "title",
+                "Unknown source",
+            )
+        ).strip()
+
+        source = str(
+            chunk.get(
+                "source",
+                "Unknown file",
+            )
+        ).strip()
+
+        similarity = chunk.get(
+            "similarity"
+        )
+
+        source_lines = [
+            f"### {position}. {title}",
+            f"**Source:** {source}",
+        ]
+
+        if similarity is not None:
+            source_lines.append(
+                f"**Similarity:** {float(similarity):.4f}"
+            )
+
+        source_sections.append(
+            "\n\n".join(source_lines)
+        )
+
+    formatted_sources = (
+        "\n\n---\n\n".join(source_sections)
+        if source_sections
+        else "No approved sources were returned."
+    )
+
+    progress(
+        1.0,
+        desc="Answer ready.",
+    )
+
+    return (
+        answer,
+        message,
+        formatted_sources,
+        context,
+    )
+
+
+# =============================================================
+# PRESENTATION LAYER
+#
+# Technology:
+# Gradio
+# =============================================================
+#
+# Gradio is only responsible for:
+#
+# - collecting the user's question
+# - displaying the generated answer
+# - displaying development information
+#
+# It does not contain retrieval or AI logic.
+# =============================================================
+
+with gr.Blocks(
+    title="Mzansi AI Hub | Heritage Intelligence Engine"
+) as demo:
+
+    gr.Markdown(
+        """
+# Mzansi AI Hub
+
+## Heritage Intelligence Engine
+
+Ask a question about South African heritage.
+
+The application retrieves relevant knowledge from the heritage
+document collection and generates a grounded answer using only
+the approved context.
+"""
+    )
+
+    with gr.Row():
+
+        with gr.Column(scale=2):
+
+            question_input = gr.Textbox(
+                label="Heritage Question",
+                placeholder=(
+                    "Example: Why is Robben Island "
+                    "historically significant?"
+                ),
+                lines=3,
+            )
+
+            ask_button = gr.Button(
+                "Ask the Heritage Intelligence Engine",
+                variant="primary",
+            )
+
+            clear_button = gr.ClearButton(
+                value="Clear",
+            )
+
+        with gr.Column(scale=3):
+
+            answer_output = gr.Textbox(
+                label="Grounded Heritage Answer",
+                lines=10,
+                interactive=False,
+            )
+
+            status_output = gr.Textbox(
+                label="System Status",
+                lines=2,
+                interactive=False,
+            )
+
+    with gr.Accordion(
+        "Approved Heritage Sources",
+        open=False,
+    ):
+        sources_output = gr.Markdown()
+
+    with gr.Accordion(
+        "Development View: LLM-Ready Context",
+        open=False,
+    ):
+        context_output = gr.Textbox(
+            label="Context sent to the response model",
+            lines=16,
+            interactive=False,
+        )
+
+    ask_button.click(
+        fn=ask_heritage_question,
+        inputs=[
+            question_input,
         ],
+        outputs=[
+            answer_output,
+            status_output,
+            sources_output,
+            context_output,
+        ],
+    )
+
+    question_input.submit(
+        fn=ask_heritage_question,
+        inputs=[
+            question_input,
+        ],
+        outputs=[
+            answer_output,
+            status_output,
+            sources_output,
+            context_output,
+        ],
+    )
+
+    clear_button.add(
+        components=[
+            question_input,
+            answer_output,
+            status_output,
+            sources_output,
+            context_output,
+        ]
+    )
+
+
+# =============================================================
+# APPLICATION LAUNCH
+# =============================================================
+
+if __name__ == "__main__":
+    demo.launch(
+        share=True,
+        debug=True,
     )
