@@ -128,11 +128,11 @@ print("=" * 70)
 # ============================================================
 
 markdown_provider = MarkdownProvider(
-    directory_path=MARKDOWN_DIRECTORY,
+    source_path=MARKDOWN_DIRECTORY,
 )
 
 pdf_provider = PDFProvider(
-    directory_path=PDF_DIRECTORY,
+    source_path=PDF_DIRECTORY,
 )
 # ============================================================
 # CHUNKING LAYER
@@ -435,3 +435,13 @@ grounded answers using AI.
             status,
         ],
     )
+# ============================================================
+# APPLICATION LAUNCH
+# ============================================================
+
+if __name__ == "__main__":
+
+    demo.launch(
+        share=True,
+        debug=True,
+    )    
