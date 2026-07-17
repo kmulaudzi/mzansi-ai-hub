@@ -1,35 +1,28 @@
-# Release 009 — Context Engine
+# Release 010A — Response Generation Engine
 
 ## Overview
 
-Release 009 introduces the Context Engine.
+Release 010A introduces the Response Generation Engine to the
+Mzansi AI Hub Heritage Intelligence Engine.
 
-The Context Engine converts approved heritage knowledge chunks into one structured, LLM-ready context string.
+The engine converts a user question and supplied heritage context
+into a grounded natural-language answer.
 
-This release does not generate answers yet.
-
-Its responsibility is to prepare retrieved knowledge so that a future Response Generation Engine can use it safely and consistently.
+This release validates the response-generation capability
+independently before integrating it into the complete Heritage
+Intelligence Engine.
 
 ---
 
-## Capability Introduced
+## Release Goal
 
-### Knowledge Organization
-
-Previous releases focused on:
-
-- loading documents
-- splitting documents into chunks
-- generating embeddings
-- storing vectors
-- retrieving semantic matches
-- filtering weak retrieval results
-
-Release 009 adds the next capability:
+The goal of this release is to prove the following flow:
 
 ```text
-Approved Chunks
+User Question
+        +
+Heritage Context
         ↓
-Context Engine
+Response Generation Engine
         ↓
-LLM-Ready Context
+Grounded Heritage Answer

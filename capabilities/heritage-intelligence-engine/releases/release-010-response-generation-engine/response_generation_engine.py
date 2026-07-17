@@ -1,79 +1,54 @@
 """
-Mzansi AI Hub
-Heritage Intelligence Engine
+Response Generation Engine
 
-Release 010 - Response Generation Engine
+This engine generates a grounded natural-language answer using:
+
+1. A user question
+2. Heritage context supplied by the Context Engine
+
+The engine does not retrieve documents, create embeddings,
+search FAISS, build context, or manage the user interface.
 """
-
-from transformers import (
-    AutoModelForSeq2SeqLM,
-    AutoTokenizer,
-)
 
 
 class ResponseGenerationEngine:
     """
-    Generates grounded responses from
-    LLM-ready context.
-
-    Responsibilities
-    ----------------
-
-    ✓ Build prompts
-
-    ✓ Call the language model
-
-    ✓ Return the generated response
-
-    It does NOT
-
-    ✗ Retrieve documents
-
-    ✗ Build embeddings
-
-    ✗ Build context
-
-    ✗ Display Gradio UI
+    Generates grounded answers from a question and supplied context.
     """
 
     def __init__(
         self,
-        model: AutoModelForSeq2SeqLM,
-        tokenizer: AutoTokenizer,
+        model,
+        tokenizer,
+        max_new_tokens: int = 200,
     ):
+        """
+        Initialise the Response Generation Engine.
+
+        Parameters
+        ----------
+        model
+            A Hugging Face text-generation model.
+
+        tokenizer
+            A Hugging Face tokenizer compatible with the model.
+
+        max_new_tokens
+            Maximum number of new tokens the model may generate.
+        """
+
+        if model is None:
+            raise ValueError("A response-generation model is required.")
+
+        if tokenizer is None:
+            raise ValueError("A tokenizer is required.")
+
+        if max_new_tokens <= 0:
+            raise ValueError("max_new_tokens must be greater than zero.")
+
         self.model = model
         self.tokenizer = tokenizer
-
-    def generate_response(
-        self,
-        query: str,
-        context: str,
-    ) -> str:
-        """
-        Generate a grounded heritage answer.
-        """
-
-        prompt = self._build_prompt(
-            query=query,
-            context=context,
-        )
-
-        inputs = self.tokenizer(
-            prompt,
-            return_tensors="pt",
-        )
-
-        outputs = self.model.generate(
-            **inputs,
-            max_new_tokens=200,
-        )
-
-        response = self.tokenizer.decode(
-            outputs[0],
-            skip_special_tokens=True,
-        )
-
-        return response.strip()
+        self.max_new_tokens = max_new_tokens
 
     def _build_prompt(
         self,
@@ -81,23 +56,102 @@ class ResponseGenerationEngine:
         context: str,
     ) -> str:
         """
-        Construct a grounded prompt.
+        Build the controlled prompt sent to the language model.
+
+        The prompt instructs the model to answer only from the
+        supplied heritage context.
         """
+
+        clean_query = (query or "").strip()
+        clean_context = (context or "").strip()
 
         return f"""
 You are the Heritage Intelligence Engine.
 
-Answer ONLY using the supplied heritage context.
+Answer the user's question using only the supplied heritage context.
 
-If the answer is not contained in the context, reply:
+Do not use outside knowledge.
 
-The available heritage documents do not contain enough information.
+Do not invent names, dates, places, statistics, or events.
+
+If the answer is not contained in the supplied context, respond exactly with:
+
+The available heritage documents do not contain enough information to answer this question.
+
+Keep the answer clear, factual, and concise.
 
 Question:
-{query}
+{clean_query}
 
-Context:
-{context}
+Heritage Context:
+{clean_context}
 
 Answer:
-"""
+""".strip()
+
+    def generate_response(
+        self,
+        query: str,
+        context: str,
+    ) -> str:
+        """
+        Generate a grounded answer.
+
+        Parameters
+        ----------
+        query
+            The user's heritage question.
+
+        context
+            The approved heritage context produced by the
+            Context Engine.
+
+        Returns
+        -------
+        str
+            The generated answer.
+        """
+
+        clean_query = (query or "").strip()
+        clean_context = (context or "").strip()
+
+        if not clean_query:
+            raise ValueError("The query cannot be empty.")
+
+        if not clean_context:
+            return (
+                "The available heritage documents do not contain "
+                "enough information to answer this question."
+            )
+
+        prompt = self._build_prompt(
+            query=clean_query,
+            context=clean_context,
+        )
+
+        inputs = self.tokenizer(
+            prompt,
+            return_tensors="pt",
+            truncation=True,
+        )
+
+        outputs = self.model.generate(
+            **inputs,
+            max_new_tokens=self.max_new_tokens,
+            do_sample=False,
+        )
+
+        response = self.tokenizer.decode(
+            outputs[0],
+            skip_special_tokens=True,
+        )
+
+        clean_response = response.strip()
+
+        if not clean_response:
+            return (
+                "The available heritage documents do not contain "
+                "enough information to answer this question."
+            )
+
+        return clean_response
