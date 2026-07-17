@@ -61,6 +61,13 @@ CONTENT_WEIGHT = 1
 
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
+"""
+Release 008
+Retrieval Policies
+"""
+
+SIMILARITY_THRESHOLD = 0.50
+
 # -------------------------------------------------------------------
 # User Interface Settings
 # -------------------------------------------------------------------
@@ -77,3 +84,4 @@ APPLICATION_DESCRIPTION = (
     f"{RELEASE_NAME} of the {CAPABILITY_NAME}. "
     "Search and rank structured South African heritage Knowledge Cards."
 )
+

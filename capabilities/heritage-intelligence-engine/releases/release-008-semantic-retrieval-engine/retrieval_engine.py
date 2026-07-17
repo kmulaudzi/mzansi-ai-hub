@@ -2,7 +2,7 @@
 Mzansi AI Hub
 Heritage Intelligence Engine
 
-Release 007 - Vector Database Engine
+Release 008 - Retrieval Policy Engine
 
 Retrieval Engine
 """
@@ -12,12 +12,13 @@ from typing import Dict, List
 from chunking_engine import ChunkingEngine
 from embedding_engine import EmbeddingEngine
 from providers.base_provider import BaseProvider
+from retrieval_policy_engine import RetrievalPolicyEngine
 from vector_database_engine import VectorDatabaseEngine
 
 
 class RetrievalEngine:
     """
-    Coordinates knowledge preparation and vector retrieval.
+    Coordinates knowledge preparation and policy-controlled retrieval.
 
     Startup flow
     ------------
@@ -47,7 +48,11 @@ class RetrievalEngine:
         ↓
     Vector Database Engine
         ↓
-    Nearest Heritage Chunks
+    Candidate Chunks
+        ↓
+    Retrieval Policy Engine
+        ↓
+    Approved Chunks
     """
 
     def __init__(
@@ -56,11 +61,12 @@ class RetrievalEngine:
         chunking_engine: ChunkingEngine,
         embedding_engine: EmbeddingEngine,
         vector_database_engine: VectorDatabaseEngine,
+        retrieval_policy_engine: RetrievalPolicyEngine,
     ):
         """
-        Connect all dependencies required for vector retrieval.
+        Connect all dependencies required for retrieval.
 
-        The Retrieval Engine does not create its dependencies.
+        The Retrieval Engine does not create these components.
         They are created in app.py and injected here.
         """
 
@@ -73,6 +79,7 @@ class RetrievalEngine:
         self.chunking_engine = chunking_engine
         self.embedding_engine = embedding_engine
         self.vector_database_engine = vector_database_engine
+        self.retrieval_policy_engine = retrieval_policy_engine
 
         self.is_prepared = False
 
@@ -113,11 +120,7 @@ class RetrievalEngine:
         )
 
         # ---------------------------------------------------------
-        # Build vector index
-        # ---------------------------------------------------------
-        #
-        # The Retrieval Engine delegates storage and indexing to the
-        # Vector Database Engine.
+        # Build the vector index
         # ---------------------------------------------------------
 
         self.vector_database_engine.build_index(
@@ -134,20 +137,21 @@ class RetrievalEngine:
         top_k: int,
     ) -> List[Dict]:
         """
-        Retrieve the nearest heritage chunks from the vector index.
+        Retrieve and approve heritage knowledge.
 
         Parameters
         ----------
         query : str
-            User's natural-language search query.
+            User's natural-language query.
 
         top_k : int
-            Maximum number of nearest neighbours to return.
+            Number of nearest-neighbour candidates requested
+            from the Vector Database Engine.
 
         Returns
         -------
         List[Dict]
-            Nearest heritage chunks returned by the vector database.
+            Candidate chunks that passed the retrieval policies.
         """
 
         if not self.is_prepared:
@@ -156,14 +160,40 @@ class RetrievalEngine:
                 "Call prepare() before searching."
             )
 
-        # Convert the user's query into the same vector space used
-        # by the indexed heritage chunks.
+        # ---------------------------------------------------------
+        # Create the query embedding
+        # ---------------------------------------------------------
+
         query_embedding = self.embedding_engine.embed_text(
             text=query
         )
 
-        # Ask the Vector Database Engine for the nearest neighbours.
-        return self.vector_database_engine.search(
+        # ---------------------------------------------------------
+        # Retrieve candidates from semantic memory
+        # ---------------------------------------------------------
+        #
+        # These are only candidates.
+        # The Vector Database finds close vectors, but it does not
+        # decide whether they are relevant enough to continue.
+        # ---------------------------------------------------------
+
+        candidate_chunks = self.vector_database_engine.search(
             query_embedding=query_embedding,
             top_k=top_k,
         )
+
+        # ---------------------------------------------------------
+        # Apply retrieval policies
+        # ---------------------------------------------------------
+        #
+        # The Retrieval Policy Engine evaluates the candidates.
+        #
+        # Release 008 policy:
+        # similarity >= configured threshold
+        # ---------------------------------------------------------
+
+        approved_chunks = self.retrieval_policy_engine.apply(
+            candidate_chunks=candidate_chunks
+        )
+
+        return approved_chunks
