@@ -2,222 +2,78 @@
 Mzansi AI Hub
 Heritage Intelligence Engine
 
-Release 007 - Vector Database Engine
+Release 008 - Semantic Retrieval Engine
 
-Gradio Interface and Runtime Blueprint
+Gradio Presentation Adapter and Runtime Blueprint
 """
 
 from typing import Any
 
 import gradio as gr
 
-from application_engine import ApplicationEngine
-from chunking_engine import ChunkingEngine
-from embedding_engine import EmbeddingEngine
-from providers.markdown_provider import MarkdownProvider
-from providers.pdf_provider import PDFProvider
+from bootstrap import create_application
 from settings import (
     APPLICATION_DESCRIPTION,
     APPLICATION_NAME,
-    CHUNK_OVERLAP,
-    CHUNK_SIZE,
-    DATASET_PATH,
-    MAX_RESULTS,
-    PDF_DATASET_PATH,
     RESULTS_LABEL,
     SEARCH_LABEL,
     SEARCH_PLACEHOLDER,
     WINDOW_TITLE,
 )
-from vector_database_engine import VectorDatabaseEngine
 
 
 def create_demo(
     embedding_model: Any,
 ) -> gr.Interface:
     """
-    Build the complete Release 007 application.
+    Build and return the Release 008 Gradio application.
 
-    Full runtime flow
-    -----------------
-    1. Google Colab loads the Hugging Face embedding model.
+    Runtime flow
+    ------------
+    1. Google Colab loads the external embedding model.
     2. Colab passes the model into create_demo().
-    3. This function creates the document Providers.
-    4. It creates the Chunking Engine.
-    5. It connects the Hugging Face model to our Embedding Engine.
-    6. It creates the Vector Database Engine.
-    7. It injects every component into the Application Engine.
-    8. The application loads, chunks and embeds the documents.
-    9. The Vector Database Engine builds the FAISS index.
-    10. The Gradio interface is created and returned.
+    3. bootstrap.py assembles the Semantic Retrieval capability.
+    4. The Application Engine prepares the heritage knowledge index.
+    5. Gradio sends user queries to the Application Engine.
+    6. The Application Engine returns approved semantic results.
+    7. Gradio formats and displays the retrieved evidence.
 
-    app.py is the runtime blueprint.
+    Responsibility
+    --------------
+    app.py owns the presentation layer.
 
-    It shows where all architectural components are created
-    and connected.
+    It does not construct the internal retrieval components directly.
+    Capability assembly belongs to bootstrap.py.
     """
 
     # -------------------------------------------------------------
-    # Provider Layer
+    # Capability Bootstrap
     # Python:
-    # providers/markdown_provider.py
-    # providers/pdf_provider.py
+    # bootstrap.py
     # -------------------------------------------------------------
     #
-    # Providers read different source formats and convert them into
-    # the same standard document contract.
+    # bootstrap.py creates and connects:
     #
-    # MarkdownProvider:
-    #   Reads the structured Heritage Knowledge Cards.
-    #
-    # PDFProvider:
-    #   Reads the heritage PDF collection.
-    #
-    # Both providers return documents containing fields such as:
-    #
-    #   filename
-    #   title
-    #   content
-    #   source_type
-    #   source_path
-    # -------------------------------------------------------------
-
-    markdown_provider = MarkdownProvider(
-        source_path=str(DATASET_PATH)
-    )
-
-    pdf_provider = PDFProvider(
-        source_path=str(PDF_DATASET_PATH)
-    )
-
-    # -------------------------------------------------------------
-    # Pre-processing Layer
-    # Python:
-    # chunking_engine.py
-    # -------------------------------------------------------------
-    #
-    # The Chunking Engine divides large documents into smaller
-    # searchable pieces of knowledge.
-    #
-    # It preserves:
-    #
-    #   source file
-    #   source type
-    #   source path
-    #   parent document
-    #   chunk ID
-    #   chunk index
-    #
-    # The overlap helps preserve context between neighbouring chunks.
-    # -------------------------------------------------------------
-
-    chunking_engine = ChunkingEngine(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-    )
-
-    # -------------------------------------------------------------
-    # Embedding Layer
-    # Python:
-    # embedding_engine.py
-    # -------------------------------------------------------------
-    #
-    # embedding_model is the real Hugging Face model loaded in Colab.
-    #
-    # EmbeddingEngine is our architectural wrapper around that model.
-    #
-    # This is the connection point:
-    #
-    # Hugging Face SentenceTransformer
-    #               ↓
-    #         EmbeddingEngine
-    #               ↓
-    # Heritage Intelligence Engine
-    #
-    # The same Embedding Engine is used for:
-    #
-    # Startup:
-    #   Document chunks → chunk embeddings
-    #
-    # Search time:
-    #   User query → query embedding
-    #
-    # Sentence Transformers remains an implementation behind
-    # our stable Embedding Engine contract.
-    # -------------------------------------------------------------
-
-    embedding_engine = EmbeddingEngine(
-        model=embedding_model
-    )
-
-    # -------------------------------------------------------------
-    # Intelligence Storage Layer
-    # Python:
-    # vector_database_engine.py
-    # -------------------------------------------------------------
-    #
-    # The Vector Database Engine owns the AI memory layer.
-    #
-    # Startup:
-    #
-    # Embedded chunks
-    #       ↓
-    # build_index()
-    #       ↓
-    # FAISS vector index
-    #
-    # Search time:
-    #
-    # Query embedding
-    #       ↓
-    # search()
-    #       ↓
-    # Nearest-neighbour chunks
-    #
-    # FAISS is only the implementation behind our contract.
-    #
-    # The rest of the application does not import or communicate
-    # with FAISS directly.
-    # -------------------------------------------------------------
-
-    vector_database_engine = VectorDatabaseEngine()
-
-    # -------------------------------------------------------------
-    # Application Layer
-    # Python:
-    # application_engine.py
-    # -------------------------------------------------------------
-    #
-    # The Application Engine coordinates the user-facing workflow.
-    #
-    # It receives:
-    #
-    #   Providers
+    #   Markdown Provider
+    #   PDF Provider
     #   Chunking Engine
     #   Embedding Engine
     #   Vector Database Engine
+    #   Retrieval Policy Engine
+    #   Application Engine
     #
-    # It injects these components into the Retrieval Engine.
-    #
-    # Gradio communicates only with the Application Engine.
+    # app.py receives only the completed Application Engine.
     # -------------------------------------------------------------
 
-    application_engine = ApplicationEngine(
-        providers=[
-            markdown_provider,
-            pdf_provider,
-        ],
-        chunking_engine=chunking_engine,
-        embedding_engine=embedding_engine,
-        vector_database_engine=vector_database_engine,
-        max_results=MAX_RESULTS,
+    application_engine = create_application(
+        embedding_model=embedding_model,
     )
 
     # -------------------------------------------------------------
     # Startup Preparation
     # -------------------------------------------------------------
     #
-    # This expensive workflow runs once when create_demo() is called.
+    # This workflow runs once when create_demo() is called.
     #
     # Providers
     #     ↓
@@ -235,10 +91,7 @@ def create_demo(
     #     ↓
     # FAISS vector index
     #
-    # Searches reuse the existing index.
-    #
-    # The complete document preparation pipeline does not run again
-    # for every user query.
+    # User searches reuse the prepared index.
     # -------------------------------------------------------------
 
     print("Preparing heritage intelligence...")
@@ -256,8 +109,6 @@ def create_demo(
 
     # -------------------------------------------------------------
     # Presentation Adapter
-    # Python:
-    # app.py
     # -------------------------------------------------------------
     #
     # Gradio receives the user query and sends it to the
@@ -271,15 +122,13 @@ def create_demo(
     #     ↓
     # Retrieval Engine
     #     ↓
-    # Embedding Engine.embed_text()
-    #     ↓
     # Query embedding
     #     ↓
-    # VectorDatabaseEngine.search()
+    # Vector Database search
     #     ↓
-    # FAISS nearest neighbours
+    # Retrieval policy
     #     ↓
-    # Enriched heritage chunks
+    # Approved semantic results
     #     ↓
     # Gradio Markdown output
     #
@@ -287,11 +136,11 @@ def create_demo(
     #
     #   load documents
     #   create chunks
-    #   generate embeddings
-    #   build indexes
-    #   search FAISS directly
+    #   generate embeddings directly
+    #   build the FAISS index directly
+    #   apply retrieval policies directly
     #
-    # It only receives user input and displays application output.
+    # It only receives input and displays application output.
     # -------------------------------------------------------------
 
     def format_search_results(
@@ -299,15 +148,20 @@ def create_demo(
         progress=gr.Progress(),
     ) -> str:
         """
-        Search the FAISS heritage index and format the results.
+        Search the heritage knowledge index and format the results.
 
-        Search-time flow
-        ----------------
-        1. Receive the user's natural-language query.
-        2. Convert the query into an embedding.
-        3. Search the FAISS vector index.
-        4. Retrieve the nearest embedded chunks.
-        5. Format the results for Gradio.
+        Parameters
+        ----------
+        query:
+            Natural-language heritage search query.
+
+        progress:
+            Gradio progress indicator.
+
+        Returns
+        -------
+        str
+            Markdown-formatted semantic retrieval results.
         """
 
         if not query or not query.strip():
@@ -330,20 +184,20 @@ def create_demo(
             )
 
             response = application_engine.search(
-                query=query
+                query=query,
             )
 
             progress(
                 0.85,
-                desc="Formatting nearest-neighbour results...",
+                desc="Formatting semantic retrieval results...",
             )
 
         except Exception as error:
             return (
                 "## Application error\n\n"
-                f"```text\n"
+                "```text\n"
                 f"{type(error).__name__}: {error}\n"
-                f"```"
+                "```"
             )
 
         if response["result_count"] == 0:
@@ -358,8 +212,8 @@ def create_demo(
             f"## {response['message']}",
             "",
             (
-                "These results were retrieved from the FAISS "
-                "vector index using semantic nearest-neighbour search."
+                "These results were retrieved from the heritage "
+                "vector index using semantic similarity search."
             ),
             "",
         ]
@@ -416,7 +270,7 @@ def create_demo(
 
         progress(
             1.0,
-            desc="Nearest-neighbour results ready.",
+            desc="Semantic retrieval results ready.",
         )
 
         return "\n".join(output)
@@ -426,7 +280,7 @@ def create_demo(
     # -------------------------------------------------------------
     #
     # The examples intentionally use meaning-based queries rather
-    # than only exact document keywords.
+    # than relying only on exact document keywords.
     # -------------------------------------------------------------
 
     return gr.Interface(
@@ -442,8 +296,9 @@ def create_demo(
         title=f"{APPLICATION_NAME} — {WINDOW_TITLE}",
         description=(
             f"{APPLICATION_DESCRIPTION}\n\n"
-            "Release 007 stores heritage meaning in a FAISS "
-            "vector index and retrieves the nearest neighbours."
+            "Release 008 retrieves relevant heritage evidence using "
+            "semantic embeddings, FAISS nearest-neighbour search, "
+            "and retrieval policy filtering."
         ),
         examples=[
             ["South Africa's first democratic president"],
