@@ -2,31 +2,66 @@
 Mzansi AI Hub
 Heritage Intelligence Engine
 
-Release 002 - Heritage Search Engine
+Semantic Retrieval Capability Settings
 
-Platform settings shared across the release.
+Central configuration for dataset paths, chunking,
+embeddings, retrieval, and application information.
 """
 
 from pathlib import Path
 
 
 # -------------------------------------------------------------------
-# Project Paths
+# Repository Paths
 # -------------------------------------------------------------------
 
-BASE_DIR = Path(__file__).resolve().parent
+# Current file:
+# heritage-intelligence-engine/
+#     capabilities/
+#         semantic_retrieval/
+#             settings.py
 
-DATASET_PATH = (
-    BASE_DIR
-    / "foundation-dataset"
-    / "knowledge-cards"
+CAPABILITY_DIR = Path(__file__).resolve().parent
+
+# heritage-intelligence-engine/
+ENGINE_ROOT = CAPABILITY_DIR.parents[1]
+
+# heritage-intelligence-engine/datasets/
+DATASETS_DIR = ENGINE_ROOT / "datasets"
+
+
+def first_existing_path(*paths: Path) -> Path:
+    """
+    Return the first path that currently exists.
+
+    If none exist, return the first configured path so that any later
+    error message still shows the preferred repository location.
+    """
+
+    for path in paths:
+        if path.exists():
+            return path
+
+    return paths[0]
+
+
+# Support the likely dataset layouts while the repository is being
+# reorganised.
+
+DATASET_PATH = first_existing_path(
+    DATASETS_DIR / "knowledge-cards",
+    DATASETS_DIR / "knowledge_cards",
+    DATASETS_DIR / "foundation-dataset" / "knowledge-cards",
+    DATASETS_DIR / "foundation_dataset" / "knowledge_cards",
 )
 
-PDF_DATASET_PATH = (
-    BASE_DIR
-    / "foundation-dataset"
-    / "pdfs"
+PDF_DATASET_PATH = first_existing_path(
+    DATASETS_DIR / "pdfs",
+    DATASETS_DIR / "foundation-dataset" / "pdfs",
+    DATASETS_DIR / "foundation_dataset" / "pdfs",
 )
+
+
 # -------------------------------------------------------------------
 # Chunking Settings
 # -------------------------------------------------------------------
@@ -34,15 +69,17 @@ PDF_DATASET_PATH = (
 CHUNK_SIZE = 1000
 
 CHUNK_OVERLAP = 200
+
+
 # -------------------------------------------------------------------
 # Application Information
 # -------------------------------------------------------------------
 
 APPLICATION_NAME = "Mzansi AI Hub"
 
-CAPABILITY_NAME = "Heritage Intelligence Engine"
+CAPABILITY_NAME = "Semantic Retrieval"
 
-RELEASE_NAME = "Release 002 - Heritage Search Engine"
+ENGINE_NAME = "Heritage Intelligence Engine"
 
 
 # -------------------------------------------------------------------
@@ -55,24 +92,28 @@ TITLE_WEIGHT = 3
 
 CONTENT_WEIGHT = 1
 
+
 # -------------------------------------------------------------------
 # Embedding Settings
 # -------------------------------------------------------------------
 
-EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_MODEL_NAME = (
+    "sentence-transformers/all-MiniLM-L6-v2"
+)
 
-"""
-Release 008
-Retrieval Policies
-"""
+
+# -------------------------------------------------------------------
+# Retrieval Policies
+# -------------------------------------------------------------------
 
 SIMILARITY_THRESHOLD = 0.50
+
 
 # -------------------------------------------------------------------
 # User Interface Settings
 # -------------------------------------------------------------------
 
-WINDOW_TITLE = "Heritage Search Engine"
+WINDOW_TITLE = "Heritage Semantic Retrieval"
 
 SEARCH_LABEL = "Search Heritage Knowledge"
 
@@ -81,7 +122,7 @@ SEARCH_PLACEHOLDER = "Search South African heritage..."
 RESULTS_LABEL = "Search Results"
 
 APPLICATION_DESCRIPTION = (
-    f"{RELEASE_NAME} of the {CAPABILITY_NAME}. "
-    "Search and rank structured South African heritage Knowledge Cards."
+    f"{CAPABILITY_NAME} capability of the "
+    f"{ENGINE_NAME}. Search structured South African "
+    "heritage knowledge using semantic similarity."
 )
-
