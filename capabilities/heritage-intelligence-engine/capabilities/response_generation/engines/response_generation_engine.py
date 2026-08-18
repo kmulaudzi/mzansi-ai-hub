@@ -7,7 +7,11 @@ Response Generation Capability
 Response Generation Engine
 """
 
-from typing import Any, Dict, List
+from typing import Dict, List
+
+from capabilities.response_generation.providers.base_generation_provider import (
+    BaseGenerationProvider,
+)
 
 
 class ResponseGenerationEngine:
@@ -16,8 +20,9 @@ class ResponseGenerationEngine:
 
     Responsibilities
     ----------------
-    - Build model-ready context from approved evidence.
-    - Send the grounded prompt to the generation model.
+    - Build grounded context from approved evidence.
+    - Build the generation prompt.
+    - Delegate generation to a Generation Provider.
     - Return the generated answer.
 
     It does not:
@@ -25,21 +30,21 @@ class ResponseGenerationEngine:
     - search FAISS
     - generate embeddings
     - read source documents directly
+    - know how a specific model technology works
     """
 
     def __init__(
         self,
-        model: Any,
-        tokenizer: Any,
+        generation_provider: BaseGenerationProvider,
     ):
-        if model is None:
-            raise ValueError("model is required.")
+        if generation_provider is None:
+            raise ValueError(
+                "generation_provider is required."
+            )
 
-        if tokenizer is None:
-            raise ValueError("tokenizer is required.")
-
-        self.model = model
-        self.tokenizer = tokenizer
+        self.generation_provider = (
+            generation_provider
+        )
 
     def build_context(
         self,
@@ -68,13 +73,51 @@ class ResponseGenerationEngine:
                 "Unknown source",
             )
 
+            similarity = item.get(
+                "similarity",
+                0.0,
+            )
+
             context_parts.append(
                 f"Evidence {index}\n"
                 f"Source: {title}\n"
+                f"Similarity: {similarity:.4f}\n"
                 f"{content}"
             )
 
         return "\n\n".join(context_parts)
+
+    def build_prompt(
+        self,
+        question: str,
+        evidence: List[Dict],
+    ) -> str:
+        """
+        Build a grounded prompt from the question
+        and approved evidence.
+        """
+
+        context = self.build_context(
+            evidence=evidence
+        )
+
+        if not context:
+            return ""
+
+        return (
+            "You are a heritage knowledge assistant.\n\n"
+            "Using only the evidence provided, write a clear, "
+            "complete and informative answer to the question.\n"
+            "Summarize the most important facts from the evidence.\n"
+            "Do not answer with only a phrase or sentence fragment.\n"
+            "Do not introduce facts that are not supported by "
+            "the evidence.\n"
+            "If the evidence is insufficient, say that the "
+            "available evidence is insufficient.\n\n"
+            f"Question:\n{question}\n\n"
+            f"Evidence:\n{context}\n\n"
+            "Complete answer:"
+        )
 
     def generate(
         self,
@@ -85,39 +128,20 @@ class ResponseGenerationEngine:
         Generate an answer grounded in supplied evidence.
         """
 
-        context = self.build_context(
-            evidence=evidence
+        # Keep the strongest evidence items for now.
+        top_evidence = evidence[:3]
+
+        prompt = self.build_prompt(
+            question=question,
+            evidence=top_evidence,
         )
 
-        if not context:
+        if not prompt:
             return (
                 "I could not generate a grounded answer "
                 "because no supporting evidence was provided."
             )
 
-        prompt = (
-            "Answer the question using only the evidence below.\n"
-            "If the evidence is insufficient, say that the available "
-            "evidence is insufficient.\n\n"
-            f"Question:\n{question}\n\n"
-            f"Evidence:\n{context}\n\n"
-            "Answer:"
+        return self.generation_provider.generate(
+            prompt=prompt
         )
-
-        inputs = self.tokenizer(
-            prompt,
-            return_tensors="pt",
-            truncation=True,
-        )
-
-        outputs = self.model.generate(
-            **inputs,
-            max_new_tokens=200,
-        )
-
-        answer = self.tokenizer.decode(
-            outputs[0],
-            skip_special_tokens=True,
-        )
-
-        return answer.strip()

@@ -15,11 +15,15 @@ from .application import (
 from .engines.response_generation_engine import (
     ResponseGenerationEngine,
 )
+from .providers.huggingface_generation_provider import (
+    HuggingFaceGenerationProvider,
+)
 
 
 def create_application(
     model: Any,
     tokenizer: Any,
+    max_new_tokens: int = 250,
 ) -> ResponseGenerationApplication:
     """
     Assemble and return the Response Generation application.
@@ -32,6 +36,10 @@ def create_application(
     tokenizer:
         Tokenizer paired with the generation model.
 
+    max_new_tokens:
+        Maximum number of new tokens the provider
+        may generate for a response.
+
     Returns
     -------
     ResponseGenerationApplication
@@ -39,7 +47,7 @@ def create_application(
 
     Notes
     -----
-    This bootstrap only assembles dependencies.
+    This bootstrap assembles the capability only.
 
     It does not:
 
@@ -47,12 +55,29 @@ def create_application(
     - prepare semantic retrieval
     - load source documents
     - launch a user interface
+
+    Runtime assembly
+    ----------------
+    Hugging Face model + tokenizer
+            ↓
+    HuggingFaceGenerationProvider
+            ↓
+    ResponseGenerationEngine
+            ↓
+    ResponseGenerationApplication
     """
+
+    generation_provider = (
+        HuggingFaceGenerationProvider(
+            model=model,
+            tokenizer=tokenizer,
+            max_new_tokens=max_new_tokens,
+        )
+    )
 
     response_generation_engine = (
         ResponseGenerationEngine(
-            model=model,
-            tokenizer=tokenizer,
+            generation_provider=generation_provider
         )
     )
 
