@@ -2,12 +2,18 @@
 Mzansi AI Hub
 Heritage Intelligence Engine
 
-Release 007 - Vector Database Engine
+Foundation
 
-FAISS Vector Database Implementation
+Vector Database Engine
+
+FAISS implementation behind the platform's
+Vector Database architectural contract.
 """
 
+import json
+
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Dict, List
 
 import faiss
@@ -16,42 +22,30 @@ import numpy as np
 
 class VectorDatabaseEngine:
     """
-    Build and search a FAISS vector index.
+    Build, search, save, and load a FAISS vector index.
 
     Architectural contract
     ----------------------
     build_index(embedded_chunks)
-        Store embedded chunks in a searchable vector index.
+        Build searchable vector intelligence.
 
     search(query_embedding, top_k)
-        Retrieve the nearest embedded chunks.
+        Retrieve nearest semantic neighbours.
 
-    FAISS is only the implementation behind this contract.
-    The rest of the Heritage Intelligence Engine does not need
-    to know how FAISS works internally.
+    save(index_path, chunks_path)
+        Persist prepared vector intelligence.
+
+    load(index_path, chunks_path)
+        Restore previously prepared intelligence.
+
+    FAISS remains an implementation detail behind this engine.
     """
 
     def __init__(self):
-        """
-        Initialise an empty vector database.
-
-        State
-        -----
-        index
-            FAISS searchable vector index.
-
-        embedded_chunks
-            Original chunks whose embeddings were added to the index.
-
-            Their list position is aligned with the vector position
-            inside the FAISS index.
-
-        embedding_dimension
-            Number of values in each embedding vector.
-        """
-
         self.index = None
+
         self.embedded_chunks: List[Dict] = []
+
         self.embedding_dimension = None
 
     def build_index(
@@ -59,21 +53,7 @@ class VectorDatabaseEngine:
         embedded_chunks: List[Dict],
     ) -> None:
         """
-        Build a searchable FAISS index from embedded chunks.
-
-        Startup flow
-        ------------
-        Embedded chunks
-            ↓
-        Extract vectors
-            ↓
-        Convert to float32 NumPy matrix
-            ↓
-        Normalize vectors
-            ↓
-        Build FAISS inner-product index
-            ↓
-        Add vectors to index
+        Build a searchable FAISS index.
         """
 
         if not embedded_chunks:
@@ -85,22 +65,19 @@ class VectorDatabaseEngine:
         vectors = []
 
         for chunk in embedded_chunks:
-            embedding = chunk.get("embedding")
+            embedding = chunk.get(
+                "embedding"
+            )
 
             if embedding is None:
                 raise ValueError(
                     "Every chunk must contain an embedding."
                 )
 
-            vectors.append(embedding)
+            vectors.append(
+                embedding
+            )
 
-        # FAISS expects a two-dimensional float32 NumPy array:
-        #
-        # [
-        #     [vector 1],
-        #     [vector 2],
-        #     [vector 3],
-        # ]
         vector_matrix = np.asarray(
             vectors,
             dtype=np.float32,
@@ -108,30 +85,50 @@ class VectorDatabaseEngine:
 
         if vector_matrix.ndim != 2:
             raise ValueError(
-                "Embeddings must form a two-dimensional matrix."
+                "Embeddings must form a "
+                "two-dimensional matrix."
             )
 
-        self.embedding_dimension = vector_matrix.shape[1]
+        self.embedding_dimension = (
+            vector_matrix.shape[1]
+        )
 
-        # Normalize each vector to length 1.
-        #
-        # After normalization, inner product behaves like
-        # cosine similarity.
-        faiss.normalize_L2(vector_matrix)
+        faiss.normalize_L2(
+            vector_matrix
+        )
 
-        # IndexFlatIP performs exact maximum inner-product search.
         self.index = faiss.IndexFlatIP(
             self.embedding_dimension
         )
 
-        self.index.add(vector_matrix)
+        self.index.add(
+            vector_matrix
+        )
 
-        # Store copies so later searches can safely enrich results
-        # without modifying the original input objects.
-        self.embedded_chunks = [
-            deepcopy(chunk)
-            for chunk in embedded_chunks
-        ]
+        # -----------------------------------------------------
+        # Keep searchable chunk metadata in memory.
+        #
+        # The embedding itself is no longer required after
+        # it has been inserted into FAISS, so we deliberately
+        # remove it from the stored metadata.
+        # -----------------------------------------------------
+
+        self.embedded_chunks = []
+
+        for chunk in embedded_chunks:
+
+            stored_chunk = deepcopy(
+                chunk
+            )
+
+            stored_chunk.pop(
+                "embedding",
+                None,
+            )
+
+            self.embedded_chunks.append(
+                stored_chunk
+            )
 
     def search(
         self,
@@ -139,27 +136,12 @@ class VectorDatabaseEngine:
         top_k: int,
     ) -> List[Dict]:
         """
-        Retrieve nearest-neighbour chunks from the FAISS index.
-
-        Search-time flow
-        ----------------
-        Query embedding
-            ↓
-        Convert to float32 matrix
-            ↓
-        Normalize query vector
-            ↓
-        FAISS search
-            ↓
-        Vector positions + similarity scores
-            ↓
-        Enriched heritage chunks
+        Retrieve nearest semantic neighbours.
         """
 
         if self.index is None:
             raise RuntimeError(
-                "Vector index has not been built. "
-                "Call build_index() before search()."
+                "Vector index has not been built or loaded."
             )
 
         if top_k <= 0:
@@ -172,21 +154,12 @@ class VectorDatabaseEngine:
             dtype=np.float32,
         )
 
-        # A single embedding normally has shape:
-        #
-        # (384,)
-        #
-        # FAISS expects:
-        #
-        # (number_of_queries, embedding_dimension)
-        #
-        # Therefore we reshape it to:
-        #
-        # (1, 384)
         if query_vector.ndim == 1:
-            query_vector = query_vector.reshape(
-                1,
-                -1,
+            query_vector = (
+                query_vector.reshape(
+                    1,
+                    -1,
+                )
             )
 
         if query_vector.ndim != 2:
@@ -194,43 +167,45 @@ class VectorDatabaseEngine:
                 "Query embedding must be one vector."
             )
 
-        if query_vector.shape[1] != self.embedding_dimension:
+        if (
+            query_vector.shape[1]
+            != self.embedding_dimension
+        ):
             raise ValueError(
-                "Query embedding dimension does not match "
-                "the vector index dimension."
+                "Query embedding dimension does not "
+                "match vector index dimension."
             )
 
-        faiss.normalize_L2(query_vector)
+        faiss.normalize_L2(
+            query_vector
+        )
 
-        # Never request more neighbours than the index contains.
         result_count = min(
             top_k,
             len(self.embedded_chunks),
         )
 
-        similarity_scores, neighbour_indexes = (
-            self.index.search(
-                query_vector,
-                result_count,
-            )
+        (
+            similarity_scores,
+            neighbour_indexes,
+        ) = self.index.search(
+            query_vector,
+            result_count,
         )
 
         results = []
 
-        # FAISS returns two matrices because it supports searching
-        # multiple queries at once.
-        #
-        # We submitted one query, so we use row zero.
         for similarity, chunk_index in zip(
             similarity_scores[0],
             neighbour_indexes[0],
         ):
-            # FAISS may use -1 when no neighbour is available.
             if chunk_index < 0:
                 continue
 
             result = deepcopy(
-                self.embedded_chunks[chunk_index]
+                self.embedded_chunks[
+                    chunk_index
+                ]
             )
 
             result["similarity"] = float(
@@ -241,6 +216,113 @@ class VectorDatabaseEngine:
                 chunk_index
             )
 
-            results.append(result)
+            results.append(
+                result
+            )
 
         return results
+
+    def save(
+        self,
+        index_path: Path,
+        chunks_path: Path,
+    ) -> None:
+        """
+        Persist the FAISS index and associated chunk metadata.
+        """
+
+        if self.index is None:
+            raise RuntimeError(
+                "Cannot save an empty vector index."
+            )
+
+        index_path = Path(
+            index_path
+        )
+
+        chunks_path = Path(
+            chunks_path
+        )
+
+        index_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        chunks_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        faiss.write_index(
+            self.index,
+            str(index_path),
+        )
+
+        chunks_path.write_text(
+            json.dumps(
+                self.embedded_chunks,
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+    def load(
+        self,
+        index_path: Path,
+        chunks_path: Path,
+    ) -> int:
+        """
+        Restore a persisted FAISS index and chunk metadata.
+
+        Returns
+        -------
+        int
+            Number of searchable chunks restored.
+        """
+
+        index_path = Path(
+            index_path
+        )
+
+        chunks_path = Path(
+            chunks_path
+        )
+
+        if not index_path.exists():
+            raise FileNotFoundError(
+                f"FAISS index not found: {index_path}"
+            )
+
+        if not chunks_path.exists():
+            raise FileNotFoundError(
+                f"Chunk metadata not found: {chunks_path}"
+            )
+
+        self.index = faiss.read_index(
+            str(index_path)
+        )
+
+        self.embedded_chunks = json.loads(
+            chunks_path.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.embedding_dimension = (
+            self.index.d
+        )
+
+        if (
+            self.index.ntotal
+            != len(self.embedded_chunks)
+        ):
+            raise RuntimeError(
+                "Persisted FAISS index and chunk metadata "
+                "contain different numbers of records."
+            )
+
+        return len(
+            self.embedded_chunks
+        )

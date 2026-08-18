@@ -126,3 +126,28 @@ APPLICATION_DESCRIPTION = (
     f"{ENGINE_NAME}. Search structured South African "
     "heritage knowledge using semantic similarity."
 )
+
+# ============================================================
+# Persistent Semantic Intelligence
+# ============================================================
+
+STORAGE_DIR = (
+    ENGINE_ROOT
+    / "storage"
+    / "semantic_retrieval"
+)
+
+VECTOR_INDEX_PATH = (
+    STORAGE_DIR
+    / "faiss.index"
+)
+
+CHUNK_METADATA_PATH = (
+    STORAGE_DIR
+    / "chunks.json"
+)
+
+INDEX_MANIFEST_PATH = (
+    STORAGE_DIR
+    / "manifest.json"
+)
