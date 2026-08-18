@@ -8,15 +8,15 @@ This file is the end-to-end runtime blueprint.
 
 It connects:
 
-External models
-    ↓
-Capability bootstraps
-    ↓
+External AI Technologies
+        ↓
+Heritage Intelligence Architecture
+        ↓
+Persistent Semantic Intelligence
+        ↓
 HeritageApplication
-    ↓
-Knowledge preparation
-    ↓
-Gradio presentation layer
+        ↓
+Gradio
 """
 
 import gradio as gr
@@ -34,7 +34,7 @@ from applications.bootstrap import (
 
 
 # ============================================================
-# External Technology Configuration
+# Model Configuration
 # ============================================================
 
 EMBEDDING_MODEL_NAME = (
@@ -47,12 +47,10 @@ GENERATION_MODEL_NAME = (
 
 
 # ============================================================
-# Model Loading
+# External Technology Loading
 # ============================================================
 #
-# External technologies are loaded here.
-#
-# They are then passed into our own architectural contracts.
+# External technologies remain behind our own contracts:
 #
 # Sentence Transformers
 #       ↓
@@ -62,37 +60,87 @@ GENERATION_MODEL_NAME = (
 #       ↓
 # HuggingFaceGenerationProvider
 #
-# The external libraries do not define our architecture.
+# FAISS
+#       ↓
+# VectorDatabaseEngine
+#
+# Gradio
+#       ↓
+# Presentation Layer
+#
 # ============================================================
 
-print("Loading embedding model...")
 
-embedding_model = SentenceTransformer(
-    EMBEDDING_MODEL_NAME
-)
+def load_embedding_model():
+    """
+    Load the embedding model used by Semantic Retrieval.
+    """
 
-print("Embedding model ready.")
+    print(
+        f"Loading embedding model: "
+        f"{EMBEDDING_MODEL_NAME}"
+    )
+
+    model = SentenceTransformer(
+        EMBEDDING_MODEL_NAME
+    )
+
+    print("Embedding model ready.")
+
+    return model
 
 
-print("Loading generation tokenizer...")
+def load_generation_model():
+    """
+    Load the generation model and tokenizer.
 
-generation_tokenizer = AutoTokenizer.from_pretrained(
-    GENERATION_MODEL_NAME
-)
+    device_map='auto' places Qwen on GPU when available.
+    """
 
-print("Loading generation model...")
+    print(
+        f"Loading generation model: "
+        f"{GENERATION_MODEL_NAME}"
+    )
 
-generation_model = AutoModelForCausalLM.from_pretrained(
-    GENERATION_MODEL_NAME,
-    torch_dtype="auto",
-    device_map="auto",
-)
+    tokenizer = AutoTokenizer.from_pretrained(
+        GENERATION_MODEL_NAME
+    )
 
-print("Generation model ready.")
+    model = AutoModelForCausalLM.from_pretrained(
+        GENERATION_MODEL_NAME,
+        torch_dtype="auto",
+        device_map="auto",
+    )
+
+    print("Generation model ready.")
+
+    print(
+        "CUDA available:",
+        torch.cuda.is_available(),
+    )
+
+    print(
+        "Generation model device:",
+        model.device,
+    )
+
+    return model, tokenizer
 
 
 # ============================================================
-# Application Assembly
+# Load Models
+# ============================================================
+
+embedding_model = load_embedding_model()
+
+(
+    generation_model,
+    generation_tokenizer,
+) = load_generation_model()
+
+
+# ============================================================
+# Assemble Heritage Application
 # ============================================================
 #
 # applications/bootstrap.py assembles:
@@ -102,108 +150,176 @@ print("Generation model ready.")
 # Evidence Retrieval
 #
 # Response Generation
-#       ↓
-# Generation Provider
 #
-# All capabilities are then exposed through:
+# into:
 #
 # HeritageApplication
 #
-# Public application API:
+# Public API:
 #
 # heritage_application.prepare()
 # heritage_application.ask(question)
-# ============================================================
-
-print("Assembling Heritage Intelligence application...")
-
-heritage_application = create_heritage_application(
-    embedding_model=embedding_model,
-    generation_model=generation_model,
-    generation_tokenizer=generation_tokenizer,
-)
-
-print("Heritage Intelligence application assembled.")
-
-
-# ============================================================
-# Knowledge Preparation
-# ============================================================
 #
-# Startup preparation flow:
-#
-# datasets/
-#     ↓
-# Providers
-#     ↓
-# Standard documents
-#     ↓
-# Chunking Engine
-#     ↓
-# Page-aware chunks
-#     ↓
-# Embedding Engine
-#     ↓
-# Embedded chunks
-#     ↓
-# Vector Database Engine
-#     ↓
-# FAISS index
-#
-# If new PDFs or knowledge cards are added to datasets/,
-# restarting the application and running prepare() again
-# rebuilds the searchable intelligence with the new data.
 # ============================================================
-
-print("Preparing heritage knowledge...")
-
-prepared_count = heritage_application.prepare()
 
 print(
-    f"Heritage knowledge ready. "
-    f"Prepared {prepared_count} searchable chunks."
+    "Assembling Heritage Intelligence application..."
+)
+
+heritage_application = (
+    create_heritage_application(
+        embedding_model=embedding_model,
+        generation_model=generation_model,
+        generation_tokenizer=(
+            generation_tokenizer
+        ),
+    )
+)
+
+print(
+    "Heritage Intelligence application assembled."
 )
 
 
 # ============================================================
-# Gradio Presentation Adapter
+# Prepare Persistent Semantic Intelligence
 # ============================================================
 #
-# Gradio has ONE job:
+# prepare() now has two paths:
 #
-# User question
+# FAST PATH
+# ----------
+# Existing persisted intelligence
+# +
+# unchanged dataset fingerprint
 #       ↓
+# load FAISS index + chunk metadata
+#       ↓
+# ready almost immediately
+#
+#
+# REBUILD PATH
+# ------------
+# New/changed PDF or knowledge card
+#       ↓
+# Providers
+#       ↓
+# Page-aware documents
+#       ↓
+# ChunkingEngine
+#       ↓
+# EmbeddingEngine
+#       ↓
+# VectorDatabaseEngine
+#       ↓
+# persist new intelligence
+#
+# ============================================================
+
+print(
+    "Preparing heritage intelligence..."
+)
+
+prepared_count = (
+    heritage_application.prepare()
+)
+
+print(
+    f"Heritage intelligence ready: "
+    f"{prepared_count} searchable chunks."
+)
+
+
+# ============================================================
+# Source Formatting
+# ============================================================
+
+
+def format_sources(
+    sources,
+):
+    """
+    Convert source summaries into Markdown.
+    """
+
+    if not sources:
+        return (
+            "No supporting sources were returned."
+        )
+
+    output = []
+
+    for index, source in enumerate(
+        sources,
+        start=1,
+    ):
+        title = source.get(
+            "title",
+            "Unknown source",
+        )
+
+        filename = source.get(
+            "filename",
+            "",
+        )
+
+        page_number = source.get(
+            "page_number",
+        )
+
+        similarity = source.get(
+            "similarity",
+            0.0,
+        )
+
+        output.append(
+            f"### {index}. {title}"
+        )
+
+        if filename:
+            output.append(
+                f"**File:** `{filename}`"
+            )
+
+        if page_number is not None:
+            output.append(
+                f"**Page:** `{page_number}`"
+            )
+
+        output.append(
+            "**Semantic similarity:** "
+            f"`{similarity:.4f}`"
+        )
+
+        output.append("")
+
+    return "\n".join(output)
+
+
+# ============================================================
+# Gradio Adapter
+# ============================================================
+#
+# Gradio remains thin.
+#
+# It knows only:
+#
+# question
+#    ↓
 # heritage_application.ask()
-#       ↓
-# answer + source summaries
-#       ↓
-# display
+#    ↓
+# answer + sources
 #
-# Gradio does NOT:
-#
-# - read PDFs
-# - chunk documents
-# - generate embeddings
-# - search FAISS
-# - retrieve evidence directly
-# - call Qwen directly
-#
-# All intelligence remains behind HeritageApplication.
 # ============================================================
+
 
 def ask_heritage(
     question: str,
     progress=gr.Progress(),
 ):
     """
-    Send a heritage question through the complete
+    Send a question through the complete
     Heritage Intelligence Engine.
-
-    Returns
-    -------
-    tuple
-        answer_markdown
-        sources_markdown
     """
 
     if not question or not question.strip():
@@ -216,21 +332,26 @@ def ask_heritage(
 
         progress(
             0.10,
-            desc="Receiving heritage question...",
+            desc="Receiving question...",
         )
 
         progress(
             0.30,
-            desc="Retrieving relevant heritage evidence...",
+            desc=(
+                "Retrieving evidence and "
+                "generating grounded response..."
+            ),
         )
 
-        response = heritage_application.ask(
-            question
+        response = (
+            heritage_application.ask(
+                question
+            )
         )
 
         progress(
-            0.75,
-            desc="Generating grounded response...",
+            0.90,
+            desc="Formatting sources...",
         )
 
         answer = response.get(
@@ -238,68 +359,18 @@ def ask_heritage(
             "",
         )
 
-        sources = response.get(
-            "sources",
-            [],
-        )
-
-        # -----------------------------------------------------
-        # Format source provenance for the UI.
-        # -----------------------------------------------------
-
-        source_lines = []
-
-        for index, source in enumerate(
-            sources,
-            start=1,
-        ):
-            title = source.get(
-                "title",
-                "Unknown source",
-            )
-
-            filename = source.get(
-                "filename",
-                "",
-            )
-
-            page_number = source.get(
-                "page_number",
-            )
-
-            similarity = source.get(
-                "similarity",
-                0.0,
-            )
-
-            source_lines.append(
-                f"### {index}. {title}"
-            )
-
-            if filename:
-                source_lines.append(
-                    f"**File:** `{filename}`"
+        sources_markdown = (
+            format_sources(
+                response.get(
+                    "sources",
+                    [],
                 )
-
-            if page_number is not None:
-                source_lines.append(
-                    f"**Page:** `{page_number}`"
-                )
-
-            source_lines.append(
-                "**Semantic similarity:** "
-                f"`{similarity:.4f}`"
             )
-
-            source_lines.append("")
-
-        sources_markdown = "\n".join(
-            source_lines
         )
 
         progress(
             1.0,
-            desc="Heritage response ready.",
+            desc="Response ready.",
         )
 
         return (
@@ -311,10 +382,11 @@ def ask_heritage(
 
         return (
             (
-                "## Application error\n\n"
-                f"```text\n"
-                f"{type(error).__name__}: {error}\n"
-                f"```"
+                "## Application Error\n\n"
+                "```text\n"
+                f"{type(error).__name__}: "
+                f"{error}\n"
+                "```"
             ),
             "",
         )
@@ -325,19 +397,23 @@ def ask_heritage(
 # ============================================================
 
 with gr.Blocks(
-    title="Mzansi AI Hub — Heritage Intelligence",
+    title=(
+        "Mzansi AI Hub — "
+        "Heritage Intelligence Engine"
+    ),
 ) as demo:
 
     gr.Markdown(
         """
 # Mzansi AI Hub
+
 ## Heritage Intelligence Engine
 
-Ask questions grounded in the configured South African
-heritage knowledge base.
+Ask questions grounded in the configured
+South African heritage knowledge base.
 
-The application retrieves relevant evidence first,
-then generates an answer grounded in that evidence.
+The system retrieves supporting evidence first,
+then generates a grounded answer.
 """
     )
 
@@ -350,24 +426,40 @@ then generates an answer grounded in that evidence.
     )
 
     ask_button = gr.Button(
-        "Ask Heritage Intelligence"
+        "Ask Heritage Intelligence",
+        variant="primary",
     )
 
-    gr.Markdown("## Answer")
+    gr.Markdown(
+        "## Answer"
+    )
 
     answer_output = gr.Markdown()
 
-    gr.Markdown("## Sources")
+    gr.Markdown(
+        "## Supporting Sources"
+    )
 
     sources_output = gr.Markdown()
 
     gr.Examples(
         examples=[
-            ["Tell me about Mapungubwe"],
-            ["Who was Charlotte Maxeke?"],
-            ["What is the significance of Robben Island?"],
-            ["Tell me about Ndebele art"],
-            ["What is the Cradle of Humankind?"],
+            [
+                "Tell me about Mapungubwe"
+            ],
+            [
+                "Who was Charlotte Maxeke?"
+            ],
+            [
+                "What is the significance "
+                "of Robben Island?"
+            ],
+            [
+                "Tell me about Ndebele art"
+            ],
+            [
+                "What is the Cradle of Humankind?"
+            ],
         ],
         inputs=question_input,
     )
@@ -395,12 +487,18 @@ then generates an answer grounded in that evidence.
 # Runtime Launch
 # ============================================================
 #
-# queue() enables queued Gradio execution and allows the
-# visible gr.Progress indicator to update during requests.
+# queue()
+# enables queued execution and Gradio progress updates.
+#
+# share=True
+# is useful in Colab for a temporary public demo URL.
+#
 # ============================================================
 
 if __name__ == "__main__":
 
     demo.queue()
 
-    demo.launch()
+    demo.launch(
+        share=True,
+    )
