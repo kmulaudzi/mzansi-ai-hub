@@ -2,7 +2,9 @@
 Mzansi AI Hub
 Heritage Intelligence Engine
 
-Release 004 - Document Chunking Engine
+Foundation
+
+Document Chunking Engine
 """
 
 from typing import Dict, List
@@ -10,10 +12,11 @@ from typing import Dict, List
 
 class ChunkingEngine:
     """
-    Splits large documents into smaller searchable chunks.
+    Split standardized documents into smaller
+    searchable knowledge chunks.
 
-    The engine preserves the original document metadata
-    while adding chunk-specific metadata.
+    The engine preserves source metadata while
+    adding chunk-specific metadata.
     """
 
     def __init__(
@@ -33,7 +36,8 @@ class ChunkingEngine:
 
         if chunk_overlap >= chunk_size:
             raise ValueError(
-                "chunk_overlap must be smaller than chunk_size."
+                "chunk_overlap must be smaller "
+                "than chunk_size."
             )
 
         self.chunk_size = chunk_size
@@ -44,28 +48,35 @@ class ChunkingEngine:
         documents: List[Dict],
     ) -> List[Dict]:
         """
-        Split documents into smaller chunks.
+        Split standardized documents into chunks.
 
         Parameters
         ----------
-        documents : List[Dict]
+        documents:
             Documents supplied by one or more providers.
 
         Returns
         -------
         List[Dict]
-            Document chunks with preserved source metadata.
+            Searchable chunks with preserved source
+            metadata and chunk-specific metadata.
         """
 
         chunks = []
 
         for document in documents:
-            content = document.get("content", "").strip()
+
+            content = document.get(
+                "content",
+                "",
+            ).strip()
 
             if not content:
                 continue
 
-            document_chunks = self._split_text(content)
+            document_chunks = self._split_text(
+                content
+            )
 
             for chunk_index, chunk_content in enumerate(
                 document_chunks
@@ -73,29 +84,71 @@ class ChunkingEngine:
                 chunk = document.copy()
 
                 chunk["content"] = chunk_content
+
                 chunk["chunk_index"] = chunk_index
-                chunk["chunk_id"] = (
-                    f"{document['filename']}"
-                    f"-chunk-{chunk_index}"
+
+                # -------------------------------------------------
+                # Build a unique chunk identifier.
+                #
+                # Markdown documents normally have no page number:
+                #
+                # mapungubwe_kingdom.md-chunk-0
+                #
+                # PDF documents now preserve page boundaries:
+                #
+                # heritage.pdf-page-7-chunk-0
+                # -------------------------------------------------
+
+                page_number = document.get(
+                    "page_number"
                 )
-                chunk["parent_document"] = document["filename"]
+
+                if page_number is not None:
+
+                    chunk["chunk_id"] = (
+                        f"{document['filename']}"
+                        f"-page-{page_number}"
+                        f"-chunk-{chunk_index}"
+                    )
+
+                else:
+
+                    chunk["chunk_id"] = (
+                        f"{document['filename']}"
+                        f"-chunk-{chunk_index}"
+                    )
+
+                chunk["parent_document"] = (
+                    document["filename"]
+                )
 
                 chunks.append(chunk)
 
         return chunks
 
-    def _split_text(self, text: str) -> List[str]:
+    def _split_text(
+        self,
+        text: str,
+    ) -> List[str]:
         """
-        Split one text value using character-based chunking.
+        Split one document using character-based
+        overlapping chunks.
+
+        Source boundaries such as PDF pages are already
+        preserved by the Provider before this method runs.
         """
 
         chunks = []
+
         start = 0
 
         while start < len(text):
+
             end = start + self.chunk_size
 
-            chunk = text[start:end].strip()
+            chunk = text[
+                start:end
+            ].strip()
 
             if chunk:
                 chunks.append(chunk)

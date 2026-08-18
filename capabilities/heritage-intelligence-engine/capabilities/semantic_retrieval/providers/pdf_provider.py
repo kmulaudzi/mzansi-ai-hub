@@ -2,7 +2,7 @@
 Mzansi AI Hub
 Heritage Intelligence Engine
 
-Release 003 - Document Intelligence
+Semantic Retrieval Capability
 
 PDF Document Provider
 """
@@ -15,29 +15,56 @@ from .base_provider import BaseProvider
 
 class PDFProvider(BaseProvider):
     """
-    Loads PDF files and converts them into the platform's
+    Load PDF pages and convert them into the platform's
     standard document structure.
+
+    Each PDF page becomes its own internal document.
+
+    This preserves a natural source boundary and prevents
+    the Chunking Engine from creating chunks that span
+    unrelated pages.
     """
 
-    def __init__(self, source_path: str):
+    def __init__(
+        self,
+        source_path: str,
+    ):
         self.source_path = Path(source_path)
 
-    def load_documents(self) -> List[Dict]:
+    def load_documents(
+        self,
+    ) -> List[Dict]:
         """
-        Load text from all PDFs in the configured directory.
+        Load text from all configured PDFs.
+
+        Returns
+        -------
+        List[Dict]
+            One standardized document per PDF page.
+
+        Document structure
+        ------------------
+        {
+            "filename": str,
+            "title": str,
+            "content": str,
+            "source_type": "pdf",
+            "source_path": str,
+            "page_number": int
+        }
         """
 
-        import fitz
+        import pymupdf
 
         if not self.source_path.exists():
             raise FileNotFoundError(
-                f"PDF source directory does not exist: "
+                "PDF source directory does not exist: "
                 f"{self.source_path}"
             )
 
         if not self.source_path.is_dir():
             raise NotADirectoryError(
-                f"PDF source path is not a directory: "
+                "PDF source path is not a directory: "
                 f"{self.source_path}"
             )
 
@@ -46,37 +73,39 @@ class PDFProvider(BaseProvider):
         for file_path in sorted(
             self.source_path.glob("*.pdf")
         ):
-            pdf = fitz.open(file_path)
+            pdf = pymupdf.open(file_path)
 
-            page_text = []
+            title = (
+                file_path.stem
+                .replace("_", " ")
+                .replace("-", " ")
+                .title()
+            )
 
-            for page in pdf:
-                text = page.get_text("text").strip()
+            for page_index, page in enumerate(
+                pdf,
+                start=1,
+            ):
+                content = page.get_text(
+                    "text"
+                ).strip()
 
-                if text:
-                    page_text.append(text)
+                if not content:
+                    continue
+
+                documents.append(
+                    {
+                        "filename": file_path.name,
+                        "title": title,
+                        "content": content,
+                        "source_type": "pdf",
+                        "source_path": str(
+                            file_path
+                        ),
+                        "page_number": page_index,
+                    }
+                )
 
             pdf.close()
-
-            content = "\n\n".join(page_text).strip()
-
-            if not content:
-                continue
-
-            documents.append(
-                {
-                    "filename": file_path.name,
-                    "title": file_path.stem.replace(
-                        "_",
-                        " ",
-                    ).replace(
-                        "-",
-                        " ",
-                    ).title(),
-                    "content": content,
-                    "source_type": "pdf",
-                    "source_path": str(file_path),
-                }
-            )
 
         return documents
