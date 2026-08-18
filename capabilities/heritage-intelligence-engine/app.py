@@ -231,7 +231,765 @@ print(
 
 
 # ============================================================
-# Source Formatting
+# RootArc + NHC Presentation Layer
+# ============================================================
+#
+# Public product identity:
+#
+# National Heritage Council
+#        ↓
+# Heritage Intelligence
+#        ↓
+# Powered by RootArc
+#
+#
+# The engineering architecture underneath remains unchanged:
+#
+# HeritageApplication
+#       ↓
+# Evidence Retrieval
+#       ↓
+# Semantic Retrieval
+#       ↓
+# Response Generation
+#
+# ============================================================
+
+import html
+
+
+# ============================================================
+# RootArc Visual System
+# ============================================================
+
+ROOTARC_CSS = """
+/* ==========================================================
+   ROOTARC / NHC HERITAGE INTELLIGENCE
+   ========================================================== */
+
+:root {
+    --rootarc-navy: #001A3A;
+    --rootarc-navy-deep: #001128;
+    --rootarc-navy-soft: #06254A;
+
+    --rootarc-coral: #FF4D3D;
+    --rootarc-coral-light: #FF675B;
+
+    --rootarc-cyan: #16C7D5;
+    --rootarc-gold: #F59A00;
+
+    --rootarc-cream: #F7F0E5;
+    --rootarc-cream-soft: #FFF9F1;
+
+    --rootarc-text: #F7F0E5;
+    --rootarc-dark-text: #071A38;
+    --rootarc-muted: #B8C4D5;
+}
+
+
+/* ----------------------------------------------------------
+   Entire Gradio canvas
+   ---------------------------------------------------------- */
+
+.gradio-container {
+    background:
+        radial-gradient(
+            circle at 50% 0%,
+            #062B57 0%,
+            #001A3A 38%,
+            #001128 100%
+        ) !important;
+
+    color: var(--rootarc-text) !important;
+
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+
+/* ----------------------------------------------------------
+   Main application shell
+   ---------------------------------------------------------- */
+
+#rootarc-app {
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 0 34px 60px 34px;
+}
+
+
+/* ----------------------------------------------------------
+   Top navigation / identity
+   ---------------------------------------------------------- */
+
+.rootarc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 24px 0;
+
+    border-bottom:
+        1px solid rgba(255, 255, 255, 0.10);
+}
+
+.rootarc-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.rootarc-symbol {
+    display: grid;
+    place-items: center;
+
+    width: 46px;
+    height: 46px;
+
+    border-radius: 14px;
+
+    background:
+        linear-gradient(
+            135deg,
+            var(--rootarc-coral),
+            var(--rootarc-gold),
+            var(--rootarc-cyan)
+        );
+
+    color: white;
+
+    font-size: 24px;
+    font-weight: 900;
+}
+
+.rootarc-wordmark {
+    font-size: 30px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: var(--rootarc-cream);
+}
+
+.nhc-brand {
+    text-align: right;
+}
+
+.nhc-name {
+    color: var(--rootarc-cream);
+    font-weight: 800;
+    font-size: 16px;
+}
+
+.nhc-sub {
+    color: var(--rootarc-muted);
+    font-size: 12px;
+    margin-top: 3px;
+}
+
+
+/* ----------------------------------------------------------
+   Hero
+   ---------------------------------------------------------- */
+
+.rootarc-hero {
+    text-align: center;
+    padding: 64px 20px 30px 20px;
+}
+
+.ai-badge {
+    display: inline-block;
+
+    padding: 8px 18px;
+
+    border:
+        2px solid var(--rootarc-coral);
+
+    border-radius: 9px;
+
+    color: var(--rootarc-coral-light);
+
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 2px;
+
+    margin-bottom: 24px;
+}
+
+.rootarc-hero h1 {
+    margin: 0;
+
+    color: var(--rootarc-cream);
+
+    font-size: clamp(
+        42px,
+        7vw,
+        84px
+    );
+
+    line-height: 0.95;
+
+    font-weight: 950;
+
+    letter-spacing: 2px;
+
+    text-transform: uppercase;
+}
+
+.rootarc-hero .accent {
+    color: var(--rootarc-coral);
+}
+
+.rootarc-hero-copy {
+    max-width: 760px;
+
+    margin:
+        28px auto 0 auto;
+
+    color: #E9E4DD;
+
+    font-size: 19px;
+    line-height: 1.55;
+}
+
+.rootarc-powered {
+    margin-top: 16px;
+
+    color: var(--rootarc-muted);
+
+    font-size: 13px;
+    letter-spacing: 0.7px;
+}
+
+
+/* ----------------------------------------------------------
+   Ask panel
+   ---------------------------------------------------------- */
+
+.ask-shell {
+    max-width: 1050px;
+
+    margin:
+        30px auto 0 auto;
+
+    padding: 8px;
+
+    border:
+        1px solid rgba(255, 255, 255, 0.16);
+
+    border-radius: 18px;
+
+    background:
+        rgba(1, 24, 52, 0.72);
+
+    box-shadow:
+        0 20px 60px
+        rgba(0, 0, 0, 0.25);
+}
+
+#heritage-question textarea {
+    background:
+        var(--rootarc-cream-soft) !important;
+
+    color:
+        var(--rootarc-dark-text) !important;
+
+    border:
+        0 !important;
+
+    border-radius:
+        12px !important;
+
+    min-height:
+        88px !important;
+
+    font-size:
+        17px !important;
+
+    padding:
+        18px !important;
+}
+
+#heritage-question label {
+    color:
+        var(--rootarc-cream) !important;
+
+    font-weight:
+        700 !important;
+}
+
+
+/* ----------------------------------------------------------
+   Primary button
+   ---------------------------------------------------------- */
+
+#ask-heritage-button {
+    background:
+        linear-gradient(
+            135deg,
+            var(--rootarc-coral),
+            #FF3A31
+        ) !important;
+
+    color:
+        white !important;
+
+    border:
+        none !important;
+
+    border-radius:
+        11px !important;
+
+    min-height:
+        54px !important;
+
+    font-size:
+        17px !important;
+
+    font-weight:
+        850 !important;
+
+    box-shadow:
+        0 8px 22px
+        rgba(255, 77, 61, 0.28);
+}
+
+#ask-heritage-button:hover {
+    transform:
+        translateY(-1px);
+
+    filter:
+        brightness(1.07);
+}
+
+
+/* ----------------------------------------------------------
+   Explore prompts
+   ---------------------------------------------------------- */
+
+.explore-label {
+    margin-top:
+        28px;
+
+    margin-bottom:
+        12px;
+
+    color:
+        var(--rootarc-cream);
+
+    font-size:
+        14px;
+
+    font-weight:
+        900;
+
+    letter-spacing:
+        1.4px;
+}
+
+.prompt-chip button {
+    background:
+        transparent !important;
+
+    color:
+        var(--rootarc-cream) !important;
+
+    border:
+        1px solid
+        rgba(247, 240, 229, 0.55) !important;
+
+    border-radius:
+        9px !important;
+
+    font-size:
+        13px !important;
+
+    font-weight:
+        650 !important;
+}
+
+.prompt-chip button:hover {
+    border-color:
+        var(--rootarc-cyan) !important;
+
+    color:
+        var(--rootarc-cyan) !important;
+}
+
+
+/* ----------------------------------------------------------
+   Section headers
+   ---------------------------------------------------------- */
+
+.product-section-title {
+    margin-top:
+        50px;
+
+    margin-bottom:
+        14px;
+
+    color:
+        var(--rootarc-cream);
+
+    font-weight:
+        950;
+
+    font-size:
+        24px;
+
+    letter-spacing:
+        1px;
+}
+
+
+/* ----------------------------------------------------------
+   Answer card
+   ---------------------------------------------------------- */
+
+.answer-card {
+    padding:
+        8px;
+
+    border-radius:
+        16px;
+
+    background:
+        linear-gradient(
+            90deg,
+            var(--rootarc-coral),
+            var(--rootarc-cyan)
+        );
+}
+
+#heritage-answer {
+    background:
+        var(--rootarc-cream) !important;
+
+    color:
+        var(--rootarc-dark-text) !important;
+
+    border-radius:
+        12px !important;
+
+    padding:
+        26px 30px !important;
+
+    min-height:
+        150px;
+
+    font-size:
+        16px;
+
+    line-height:
+        1.65;
+}
+
+#heritage-answer p,
+#heritage-answer li,
+#heritage-answer strong,
+#heritage-answer h1,
+#heritage-answer h2,
+#heritage-answer h3 {
+    color:
+        var(--rootarc-dark-text) !important;
+}
+
+
+/* ----------------------------------------------------------
+   Evidence
+   ---------------------------------------------------------- */
+
+.evidence-heading {
+    display:
+        flex;
+
+    justify-content:
+        space-between;
+
+    align-items:
+        end;
+
+    gap:
+        20px;
+
+    margin-top:
+        50px;
+
+    margin-bottom:
+        16px;
+}
+
+.evidence-heading h2 {
+    margin:
+        0;
+
+    color:
+        var(--rootarc-cream);
+
+    font-size:
+        24px;
+
+    font-weight:
+        950;
+
+    letter-spacing:
+        1px;
+}
+
+.evidence-heading p {
+    margin:
+        0;
+
+    color:
+        var(--rootarc-muted);
+
+    font-size:
+        13px;
+}
+
+.heritage-evidence-grid {
+    display:
+        grid;
+
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(240px, 1fr)
+        );
+
+    gap:
+        14px;
+}
+
+.evidence-card {
+    position:
+        relative;
+
+    background:
+        var(--rootarc-cream);
+
+    color:
+        var(--rootarc-dark-text);
+
+    border-radius:
+        13px;
+
+    padding:
+        20px;
+
+    border-top:
+        5px solid
+        var(--rootarc-cyan);
+
+    min-height:
+        150px;
+}
+
+.evidence-number {
+    color:
+        var(--rootarc-coral);
+
+    font-size:
+        12px;
+
+    font-weight:
+        950;
+
+    letter-spacing:
+        1px;
+}
+
+.evidence-title {
+    margin-top:
+        8px;
+
+    color:
+        var(--rootarc-dark-text);
+
+    font-size:
+        17px;
+
+    font-weight:
+        850;
+}
+
+.evidence-meta {
+    margin-top:
+        14px;
+
+    color:
+        #43506A;
+
+    font-size:
+        12px;
+
+    line-height:
+        1.6;
+}
+
+.relevance-pill {
+    display:
+        inline-block;
+
+    margin-top:
+        12px;
+
+    padding:
+        5px 9px;
+
+    border-radius:
+        6px;
+
+    background:
+        var(--rootarc-navy);
+
+    color:
+        var(--rootarc-cream);
+
+    font-size:
+        11px;
+
+    font-weight:
+        750;
+}
+
+
+/* ----------------------------------------------------------
+   Institutional trust strip
+   ---------------------------------------------------------- */
+
+.nhc-trust-strip {
+    margin-top:
+        44px;
+
+    padding:
+        24px;
+
+    border:
+        1px solid
+        rgba(245, 154, 0, 0.45);
+
+    border-radius:
+        14px;
+
+    background:
+        rgba(245, 154, 0, 0.06);
+
+    text-align:
+        center;
+}
+
+.nhc-trust-title {
+    color:
+        var(--rootarc-gold);
+
+    font-weight:
+        900;
+
+    letter-spacing:
+        1.1px;
+}
+
+.nhc-trust-copy {
+    margin-top:
+        7px;
+
+    color:
+        var(--rootarc-muted);
+
+    font-size:
+        13px;
+}
+
+
+/* ----------------------------------------------------------
+   Footer
+   ---------------------------------------------------------- */
+
+.rootarc-footer {
+    margin-top:
+        50px;
+
+    padding:
+        28px 0;
+
+    border-top:
+        1px solid
+        rgba(255, 255, 255, 0.10);
+
+    text-align:
+        center;
+
+    color:
+        #8394AD;
+
+    font-size:
+        12px;
+}
+
+
+/* ----------------------------------------------------------
+   Hide some default Gradio chrome
+   ---------------------------------------------------------- */
+
+footer {
+    display:
+        none !important;
+}
+
+
+/* ----------------------------------------------------------
+   Mobile
+   ---------------------------------------------------------- */
+
+@media (
+    max-width: 700px
+) {
+
+    #rootarc-app {
+        padding:
+            0 16px 40px 16px;
+    }
+
+    .rootarc-header {
+        align-items:
+            flex-start;
+    }
+
+    .rootarc-wordmark {
+        font-size:
+            23px;
+    }
+
+    .nhc-name {
+        font-size:
+            12px;
+    }
+
+    .rootarc-hero {
+        padding-top:
+            44px;
+    }
+
+    .rootarc-hero-copy {
+        font-size:
+            16px;
+    }
+
+    .evidence-heading {
+        display:
+            block;
+    }
+
+    .evidence-heading p {
+        margin-top:
+            5px;
+    }
+}
+"""
+
+
+# ============================================================
+# Heritage Evidence Formatting
 # ============================================================
 
 
@@ -239,77 +997,111 @@ def format_sources(
     sources,
 ):
     """
-    Convert source summaries into Markdown.
+    Convert clean application source metadata into
+    RootArc-styled heritage evidence cards.
     """
 
     if not sources:
-        return (
-            "No supporting sources were returned."
-        )
+        return """
+        <div class="heritage-evidence-grid">
+            <div class="evidence-card">
+                <div class="evidence-title">
+                    No supporting sources returned.
+                </div>
+            </div>
+        </div>
+        """
 
-    output = []
+    cards = []
 
     for index, source in enumerate(
         sources,
         start=1,
     ):
-        title = source.get(
-            "title",
-            "Unknown source",
+        title = html.escape(
+            str(
+                source.get(
+                    "title",
+                    "Unknown source",
+                )
+            )
         )
 
-        filename = source.get(
-            "filename",
-            "",
+        filename = html.escape(
+            str(
+                source.get(
+                    "filename",
+                    "",
+                )
+            )
         )
 
         page_number = source.get(
-            "page_number",
+            "page_number"
         )
 
-        similarity = source.get(
-            "similarity",
-            0.0,
-        )
-
-        output.append(
-            f"### {index}. {title}"
-        )
-
-        if filename:
-            output.append(
-                f"**File:** `{filename}`"
+        similarity = float(
+            source.get(
+                "similarity",
+                0.0,
             )
+        )
+
+        page_html = ""
 
         if page_number is not None:
-            output.append(
-                f"**Page:** `{page_number}`"
+            page_html = (
+                f"<div>"
+                f"<strong>Page:</strong> "
+                f"{html.escape(str(page_number))}"
+                f"</div>"
             )
 
-        output.append(
-            "**Semantic similarity:** "
-            f"`{similarity:.4f}`"
+        filename_html = ""
+
+        if filename:
+            filename_html = (
+                f"<div>"
+                f"<strong>File:</strong> "
+                f"{filename}"
+                f"</div>"
+            )
+
+        cards.append(
+            f"""
+            <div class="evidence-card">
+
+                <div class="evidence-number">
+                    EVIDENCE {index:02d}
+                </div>
+
+                <div class="evidence-title">
+                    {title}
+                </div>
+
+                <div class="evidence-meta">
+                    {filename_html}
+                    {page_html}
+                </div>
+
+                <div class="relevance-pill">
+                    Semantic relevance:
+                    {similarity:.2f}
+                </div>
+
+            </div>
+            """
         )
 
-        output.append("")
-
-    return "\n".join(output)
+    return (
+        '<div class="heritage-evidence-grid">'
+        + "".join(cards)
+        + "</div>"
+    )
 
 
 # ============================================================
 # Gradio Adapter
-# ============================================================
-#
-# Gradio remains thin.
-#
-# It knows only:
-#
-# question
-#    ↓
-# heritage_application.ask()
-#    ↓
-# answer + sources
-#
 # ============================================================
 
 
@@ -318,8 +1110,23 @@ def ask_heritage(
     progress=gr.Progress(),
 ):
     """
-    Send a question through the complete
+    Send a user question through the complete
     Heritage Intelligence Engine.
+
+    Gradio remains a presentation adapter only.
+
+    Runtime:
+        User
+          ↓
+        HeritageApplication.ask()
+          ↓
+        Evidence Retrieval
+          ↓
+        Semantic Retrieval
+          ↓
+        Response Generation
+          ↓
+        Answer + Heritage Evidence
     """
 
     if not question or not question.strip():
@@ -332,26 +1139,24 @@ def ask_heritage(
 
         progress(
             0.10,
-            desc="Receiving question...",
+            desc="Receiving heritage question...",
         )
 
         progress(
             0.30,
             desc=(
-                "Retrieving evidence and "
-                "generating grounded response..."
+                "Searching trusted heritage "
+                "knowledge..."
             ),
         )
 
-        response = (
-            heritage_application.ask(
-                question
-            )
+        response = heritage_application.ask(
+            question
         )
 
         progress(
             0.90,
-            desc="Formatting sources...",
+            desc="Preparing heritage evidence...",
         )
 
         answer = response.get(
@@ -359,34 +1164,30 @@ def ask_heritage(
             "",
         )
 
-        sources_markdown = (
-            format_sources(
-                response.get(
-                    "sources",
-                    [],
-                )
+        evidence_html = format_sources(
+            response.get(
+                "sources",
+                [],
             )
         )
 
         progress(
             1.0,
-            desc="Response ready.",
+            desc="Heritage response ready.",
         )
 
         return (
             answer,
-            sources_markdown,
+            evidence_html,
         )
 
     except Exception as error:
 
         return (
             (
-                "## Application Error\n\n"
-                "```text\n"
-                f"{type(error).__name__}: "
-                f"{error}\n"
-                "```"
+                "### Heritage Intelligence Error\n\n"
+                "The request could not be completed.\n\n"
+                f"`{type(error).__name__}: {error}`"
             ),
             "",
         )
@@ -398,71 +1199,252 @@ def ask_heritage(
 
 with gr.Blocks(
     title=(
-        "Mzansi AI Hub — "
-        "Heritage Intelligence Engine"
+        "NHC Heritage Intelligence — RootArc"
     ),
+    css=ROOTARC_CSS,
 ) as demo:
 
-    gr.Markdown(
-        """
-# Mzansi AI Hub
+    with gr.Column(
+        elem_id="rootarc-app"
+    ):
 
-## Heritage Intelligence Engine
+        # --------------------------------------------------------
+        # Product header
+        # --------------------------------------------------------
 
-Ask questions grounded in the configured
-South African heritage knowledge base.
+        gr.HTML(
+            """
+            <div class="rootarc-header">
 
-The system retrieves supporting evidence first,
-then generates a grounded answer.
-"""
-    )
+                <div class="rootarc-brand">
 
-    question_input = gr.Textbox(
-        label="Ask a Heritage Question",
-        placeholder=(
-            "Example: Tell me about Mapungubwe"
-        ),
-        lines=2,
-    )
+                    <div class="rootarc-symbol">
+                        ✦
+                    </div>
 
-    ask_button = gr.Button(
-        "Ask Heritage Intelligence",
-        variant="primary",
-    )
+                    <div class="rootarc-wordmark">
+                        RootArc
+                    </div>
 
-    gr.Markdown(
-        "## Answer"
-    )
+                </div>
 
-    answer_output = gr.Markdown()
+                <div class="nhc-brand">
 
-    gr.Markdown(
-        "## Supporting Sources"
-    )
+                    <div class="nhc-name">
+                        NATIONAL HERITAGE COUNCIL
+                    </div>
 
-    sources_output = gr.Markdown()
+                    <div class="nhc-sub">
+                        South Africa
+                    </div>
 
-    gr.Examples(
-        examples=[
-            [
-                "Tell me about Mapungubwe"
-            ],
-            [
-                "Who was Charlotte Maxeke?"
-            ],
-            [
-                "What is the significance "
-                "of Robben Island?"
-            ],
-            [
-                "Tell me about Ndebele art"
-            ],
-            [
-                "What is the Cradle of Humankind?"
-            ],
-        ],
-        inputs=question_input,
-    )
+                </div>
+
+            </div>
+            """
+        )
+
+        # --------------------------------------------------------
+        # Hero
+        # --------------------------------------------------------
+
+        gr.HTML(
+            """
+            <section class="rootarc-hero">
+
+                <div class="ai-badge">
+                    AI-POWERED HERITAGE EXPERIENCE
+                </div>
+
+                <h1>
+                    HERITAGE
+                    <span class="accent">INTELLIGENCE.</span>
+                </h1>
+
+                <div class="rootarc-hero-copy">
+
+                    Explore South Africa's heritage through
+                    trusted knowledge, stories, places,
+                    people and cultural history.
+
+                </div>
+
+                <div class="rootarc-powered">
+
+                    A National Heritage Council product
+                    • Powered by RootArc
+
+                </div>
+
+            </section>
+            """
+        )
+
+        # --------------------------------------------------------
+        # Ask
+        # --------------------------------------------------------
+
+        with gr.Column(
+            elem_classes=[
+                "ask-shell"
+            ]
+        ):
+
+            question_input = gr.Textbox(
+                label="Ask about South African heritage",
+                placeholder=(
+                    "What would you like to discover?"
+                ),
+                lines=2,
+                elem_id="heritage-question",
+            )
+
+            ask_button = gr.Button(
+                "ASK HERITAGE AI  →",
+                variant="primary",
+                elem_id="ask-heritage-button",
+            )
+
+        # --------------------------------------------------------
+        # Prompt shortcuts
+        # --------------------------------------------------------
+
+        gr.HTML(
+            """
+            <div class="explore-label">
+                EXPLORE OUR HERITAGE
+            </div>
+            """
+        )
+
+        with gr.Row():
+
+            mapungubwe_button = gr.Button(
+                "Mapungubwe",
+                elem_classes=[
+                    "prompt-chip"
+                ],
+            )
+
+            robben_button = gr.Button(
+                "Robben Island",
+                elem_classes=[
+                    "prompt-chip"
+                ],
+            )
+
+            charlotte_button = gr.Button(
+                "Charlotte Maxeke",
+                elem_classes=[
+                    "prompt-chip"
+                ],
+            )
+
+            cradle_button = gr.Button(
+                "Cradle of Humankind",
+                elem_classes=[
+                    "prompt-chip"
+                ],
+            )
+
+            ndebele_button = gr.Button(
+                "Ndebele Art",
+                elem_classes=[
+                    "prompt-chip"
+                ],
+            )
+
+        # --------------------------------------------------------
+        # Answer
+        # --------------------------------------------------------
+
+        gr.HTML(
+            """
+            <div class="product-section-title">
+                ANSWER
+            </div>
+            """
+        )
+
+        with gr.Column(
+            elem_classes=[
+                "answer-card"
+            ]
+        ):
+
+            answer_output = gr.Markdown(
+                elem_id="heritage-answer"
+            )
+
+        # --------------------------------------------------------
+        # Heritage Evidence
+        # --------------------------------------------------------
+
+        gr.HTML(
+            """
+            <div class="evidence-heading">
+
+                <div>
+                    <h2>
+                        HERITAGE EVIDENCE
+                    </h2>
+
+                    <p>
+                        Supporting knowledge used to ground
+                        this response.
+                    </p>
+                </div>
+
+            </div>
+            """
+        )
+
+        sources_output = gr.HTML()
+
+        # --------------------------------------------------------
+        # Trust / ownership
+        # --------------------------------------------------------
+
+        gr.HTML(
+            """
+            <div class="nhc-trust-strip">
+
+                <div class="nhc-trust-title">
+                    NATIONAL HERITAGE COUNCIL
+                </div>
+
+                <div class="nhc-trust-copy">
+
+                    Heritage Intelligence is designed to
+                    support responsible access to South
+                    African heritage knowledge.
+
+                    Responses are grounded in configured
+                    heritage evidence rather than relying
+                    solely on general-purpose AI knowledge.
+
+                </div>
+
+            </div>
+            """
+        )
+
+        gr.HTML(
+            """
+            <div class="rootarc-footer">
+
+                National Heritage Council
+                • Heritage Intelligence
+                • Powered by RootArc
+
+            </div>
+            """
+        )
+
+
+    # ========================================================
+    # Standard Question Submission
+    # ========================================================
 
     ask_button.click(
         fn=ask_heritage,
@@ -483,15 +1465,90 @@ then generates a grounded answer.
     )
 
 
+    # ========================================================
+    # Exploration Shortcuts
+    # ========================================================
+
+    mapungubwe_button.click(
+        fn=lambda: (
+            "Tell me about Mapungubwe"
+        ),
+        outputs=question_input,
+    ).then(
+        fn=ask_heritage,
+        inputs=question_input,
+        outputs=[
+            answer_output,
+            sources_output,
+        ],
+    )
+
+    robben_button.click(
+        fn=lambda: (
+            "What is the significance of Robben Island?"
+        ),
+        outputs=question_input,
+    ).then(
+        fn=ask_heritage,
+        inputs=question_input,
+        outputs=[
+            answer_output,
+            sources_output,
+        ],
+    )
+
+    charlotte_button.click(
+        fn=lambda: (
+            "Who was Charlotte Maxeke?"
+        ),
+        outputs=question_input,
+    ).then(
+        fn=ask_heritage,
+        inputs=question_input,
+        outputs=[
+            answer_output,
+            sources_output,
+        ],
+    )
+
+    cradle_button.click(
+        fn=lambda: (
+            "What is the Cradle of Humankind?"
+        ),
+        outputs=question_input,
+    ).then(
+        fn=ask_heritage,
+        inputs=question_input,
+        outputs=[
+            answer_output,
+            sources_output,
+        ],
+    )
+
+    ndebele_button.click(
+        fn=lambda: (
+            "Tell me about Ndebele art"
+        ),
+        outputs=question_input,
+    ).then(
+        fn=ask_heritage,
+        inputs=question_input,
+        outputs=[
+            answer_output,
+            sources_output,
+        ],
+    )
+
+
 # ============================================================
 # Runtime Launch
 # ============================================================
 #
 # queue()
-# enables queued execution and Gradio progress updates.
+# enables queued execution and visible progress.
 #
 # share=True
-# is useful in Colab for a temporary public demo URL.
+# gives Colab a temporary public demo URL.
 #
 # ============================================================
 
