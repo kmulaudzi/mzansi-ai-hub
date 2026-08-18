@@ -23,7 +23,7 @@ from .providers.huggingface_generation_provider import (
 def create_application(
     model: Any,
     tokenizer: Any,
-    max_new_tokens: int = 250,
+    max_new_tokens: int = 400,
 ) -> ResponseGenerationApplication:
     """
     Assemble and return the Response Generation application.

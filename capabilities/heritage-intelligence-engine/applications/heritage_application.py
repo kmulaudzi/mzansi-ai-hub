@@ -70,9 +70,25 @@ class HeritageApplication:
         """
         Prepare the heritage knowledge base.
 
-        This loads the configured source documents,
-        chunks them, creates embeddings, and prepares
-        the semantic retrieval index.
+        Runtime flow
+        ------------
+        Source documents
+            ↓
+        Providers
+            ↓
+        Standard documents
+            ↓
+        Chunking Engine
+            ↓
+        Searchable chunks
+            ↓
+        Embedding Engine
+            ↓
+        Embedded chunks
+            ↓
+        Vector Database Engine
+            ↓
+        FAISS index
 
         Returns
         -------
@@ -80,7 +96,9 @@ class HeritageApplication:
             Number of prepared knowledge chunks.
         """
 
-        return self.semantic_retrieval_application.prepare()
+        return (
+            self.semantic_retrieval_application.prepare()
+        )
 
     def ask(
         self,
@@ -88,6 +106,37 @@ class HeritageApplication:
     ) -> Dict:
         """
         Answer a heritage question using grounded evidence.
+
+        Runtime flow
+        ------------
+        User question
+            ↓
+        Evidence Retrieval
+            ↓
+        Semantic Retrieval
+            ↓
+        Approved evidence
+            ↓
+        Response Generation
+            ↓
+        Grounded answer
+            ↓
+        Clean application response
+
+        Parameters
+        ----------
+        question:
+            Natural-language heritage question.
+
+        Returns
+        -------
+        Dict
+            Clean application-level response containing:
+
+            - question
+            - answer
+            - evidence_count
+            - sources
         """
 
         clean_question = question.strip()
@@ -99,7 +148,7 @@ class HeritageApplication:
 
         # ---------------------------------------------------------
         # STEP 1
-        # Retrieve approved heritage evidence.
+        # Retrieve approved supporting evidence.
         # ---------------------------------------------------------
 
         evidence_response = (
@@ -127,11 +176,53 @@ class HeritageApplication:
 
         # ---------------------------------------------------------
         # STEP 3
-        # Return one clean application-level contract.
+        # Convert rich internal evidence into a clean
+        # public source structure.
         #
-        # Gradio and future applications should consume this
-        # structure rather than communicating with individual
-        # engines directly.
+        # The application caller does not need:
+        #
+        # - embedding vectors
+        # - FAISS vector indexes
+        # - full internal retrieval state
+        #
+        # It does need enough provenance to explain
+        # where the answer came from.
+        # ---------------------------------------------------------
+
+        source_summaries = []
+
+        for item in evidence:
+            source_summaries.append(
+                {
+                    "title": item.get(
+                        "title",
+                        "",
+                    ),
+                    "filename": item.get(
+                        "filename",
+                        "",
+                    ),
+                    "page_number": item.get(
+                        "page_number",
+                    ),
+                    "similarity": item.get(
+                        "similarity",
+                        0.0,
+                    ),
+                    "chunk_id": item.get(
+                        "chunk_id",
+                        "",
+                    ),
+                }
+            )
+
+        # ---------------------------------------------------------
+        # STEP 4
+        # Return one stable application-level contract.
+        #
+        # Gradio, APIs, chat applications, and future products
+        # should consume this structure instead of communicating
+        # directly with the lower-level capabilities.
         # ---------------------------------------------------------
 
         return {
@@ -140,6 +231,6 @@ class HeritageApplication:
                 "answer",
                 "",
             ),
-            "sources": evidence,
             "evidence_count": len(evidence),
+            "sources": source_summaries,
         }
